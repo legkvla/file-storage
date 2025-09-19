@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  file-storage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: file-storage:latest
+    container_name: file-storage-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/file_storage
+      - SERVER_PORT=8080
+    depends_on:
+      - mongo
+  mongo:
+    image: mongo:7
+    container_name: file-storage-mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo_data:/data/db
+volumes:
+  mongo_data:
