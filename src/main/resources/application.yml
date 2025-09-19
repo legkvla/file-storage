@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: file-storage
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/file_storage}
+server:
+  port: ${SERVER_PORT:8080}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/file_storage_test
