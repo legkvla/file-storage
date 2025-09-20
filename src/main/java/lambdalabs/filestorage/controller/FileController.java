@@ -225,9 +225,6 @@ public class FileController {
         return ResponseEntity.ok(saved);
     }
 
-    /**
-     * Get current user information - demonstrates how to access user identity
-     */
     @Operation(summary = "Get current user info", description = "Get information about the currently authenticated user")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),

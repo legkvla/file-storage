@@ -18,32 +18,7 @@ public class CurrentUserService {
     private static final Logger logger = LoggerFactory.getLogger(CurrentUserService.class);
 
     @Autowired
-    private JwtService jwtService;
-
-    @Autowired
     private JwtUtil jwtUtil;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    /**
-     * Get the current authenticated user
-     */
-    public Optional<User> getCurrentUser() {
-        try {
-            String token = getCurrentToken();
-            if (token == null) {
-                return Optional.empty();
-            }
-
-            String userId = jwtUtil.extractUserId(token);
-            return userRepository.findById(userId);
-
-        } catch (Exception e) {
-            logger.warn("Failed to get current user: {}", e.getMessage());
-            return Optional.empty();
-        }
-    }
 
     /**
      * Get the current user's identity
