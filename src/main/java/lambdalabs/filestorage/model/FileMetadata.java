@@ -26,7 +26,6 @@ public class FileMetadata {
     @NotNull
     private Visibility visibility;
 
-    @Indexed
     private Set<String> tags;
 
     private ObjectId gridFsId;
