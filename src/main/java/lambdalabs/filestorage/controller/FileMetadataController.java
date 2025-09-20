@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/files")
+@RequestMapping("/api/metadata")
 public class FileMetadataController {
 
     private final FileMetadataRepository repository;
