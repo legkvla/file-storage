@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lambdalabs.filestorage.model.FileMetadata;
 import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
+import lambdalabs.filestorage.service.CurrentUserService;
 import lambdalabs.filestorage.service.GridFsService;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
@@ -25,7 +26,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -41,6 +44,9 @@ public class FileController {
 
     @Autowired
     private GridFsService gridFsService;
+
+    @Autowired
+    private CurrentUserService currentUserService;
 
     /**
      * Upload a file using raw InputStream (for very large files or custom clients)
@@ -62,8 +68,12 @@ public class FileController {
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
         
-        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}", 
-                   filename, contentType, visibility, tags);
+        // Get current user identity
+        String currentUserIdentity = currentUserService.getCurrentUserIdentity()
+                .orElse("unknown");
+        
+        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}, user={}", 
+                   filename, contentType, visibility, tags, currentUserIdentity);
         
         try {
             // Store file in GridFS using streaming
@@ -213,5 +223,30 @@ public class FileController {
 
         FileMetadata saved = fileMetadataRepository.save(existing);
         return ResponseEntity.ok(saved);
+    }
+
+    /**
+     * Get current user information - demonstrates how to access user identity
+     */
+    @Operation(summary = "Get current user info", description = "Get information about the currently authenticated user")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
+    })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @GetMapping("/current-user")
+    public ResponseEntity<?> getCurrentUserInfo() {
+
+        String userIdentity = currentUserService.getCurrentUserIdentity()
+                .orElse("unknown");
+
+        String userId = currentUserService.getCurrentUserId()
+                .orElse("unknown");
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("identity", userIdentity);
+        response.put("userId", userId);
+        
+        return ResponseEntity.ok(response);
     }
 }

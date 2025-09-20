@@ -5,6 +5,7 @@ import lambdalabs.filestorage.controller.FileController;
 import lambdalabs.filestorage.model.FileMetadata;
 import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
+import lambdalabs.filestorage.service.CurrentUserService;
 import lambdalabs.filestorage.service.GridFsService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,9 @@ public class FileControllerTest {
     @MockBean
     private GridFsService gridFsService;
 
+    @MockBean
+    private CurrentUserService currentUserService;
+
     @Test
     public void testUploadFileStream() throws Exception {
         // Mock data
@@ -44,6 +48,7 @@ public class FileControllerTest {
         mockMetadata.setVisibility(Visibility.PUBLIC);
 
         when(fileMetadataRepository.save(any(FileMetadata.class))).thenReturn(mockMetadata);
+        when(currentUserService.getCurrentUserIdentity()).thenReturn(java.util.Optional.of("test-user"));
 
         mockMvc.perform(post("/api/files/upload-stream")
                 .param("filename", "test.txt")

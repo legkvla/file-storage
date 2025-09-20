@@ -126,4 +126,23 @@ public class JwtService {
     public long getJwtExpiration() {
         return jwtExpiration;
     }
+
+    /**
+     * Get JWT secret key
+     */
+    public String getJwtSecret() {
+        return secretKey;
+    }
+
+    /**
+     * Check if token is valid (not expired and properly formatted)
+     */
+    public Boolean isTokenValid(String token) {
+        try {
+            return !isTokenExpired(token);
+        } catch (Exception e) {
+            logger.warn("Token validation failed: {}", e.getMessage());
+            return false;
+        }
+    }
 }
