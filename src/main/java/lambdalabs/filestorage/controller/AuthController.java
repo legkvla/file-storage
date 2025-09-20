@@ -1,5 +1,11 @@
 package lambdalabs.filestorage.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lambdalabs.filestorage.dto.AuthRequest;
 import lambdalabs.filestorage.dto.AuthResponse;
@@ -19,6 +25,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/auth")
+@Tag(name = "Authentication", description = "Authentication and user management endpoints")
 public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -32,6 +39,13 @@ public class AuthController {
     /**
      * Generate authentication token for user
      */
+    @Operation(summary = "Generate JWT token", description = "Generate a JWT token for an existing user")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Token generated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponse.class))),
+        @ApiResponse(responseCode = "401", description = "User not found or inactive"),
+        @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
     @PostMapping("/token")
     public ResponseEntity<?> generateToken(@Valid @RequestBody AuthRequest authRequest) {
         logger.info("Token generation request for identity: {}", authRequest.getIdentity());

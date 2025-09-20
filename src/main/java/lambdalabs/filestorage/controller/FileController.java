@@ -1,5 +1,12 @@
 package lambdalabs.filestorage.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lambdalabs.filestorage.model.FileMetadata;
 import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
@@ -15,7 +22,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,6 +31,7 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/files")
+@Tag(name = "File Management", description = "File upload, download, and management endpoints")
 public class FileController {
 
     private static final Logger logger = LoggerFactory.getLogger(FileController.class);
@@ -38,6 +45,14 @@ public class FileController {
     /**
      * Upload a file using raw InputStream (for very large files or custom clients)
      */
+    @Operation(summary = "Upload file", description = "Upload a file using raw InputStream")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "File uploaded successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
+    })
+    @SecurityRequirement(name = "Bearer Authentication")
     @PostMapping("/upload-stream")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<FileMetadata> uploadFileStream(
