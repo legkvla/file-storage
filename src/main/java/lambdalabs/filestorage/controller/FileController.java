@@ -32,42 +32,6 @@ public class FileController {
     private GridFsService gridFsService;
 
     /**
-     * Upload a file to GridFS and create metadata (streaming for large files)
-     */
-    @PostMapping("/upload")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<FileMetadata> uploadFile(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "visibility", defaultValue = "PRIVATE") Visibility visibility,
-            @RequestParam(value = "tags", required = false) Set<String> tags) {
-        
-        try {
-            // Validate file
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest().build();
-            }
-
-            // Store file in GridFS using streaming
-            ObjectId gridFsId = gridFsService.storeFileStreaming(file);
-
-            // Create metadata
-            FileMetadata metadata = new FileMetadata();
-            metadata.setFilename(file.getOriginalFilename());
-            metadata.setSize(file.getSize());
-            metadata.setVisibility(visibility);
-            metadata.setTags(tags);
-            metadata.setGridFsId(gridFsId);
-
-            // Save metadata
-            FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
-
-            return ResponseEntity.ok(savedMetadata);
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
      * Upload a file using raw InputStream (for very large files or custom clients)
      */
     @PostMapping("/upload-stream")
