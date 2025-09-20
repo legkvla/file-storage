@@ -2,6 +2,8 @@ package lambdalabs.filestorage.service;
 
 import com.mongodb.client.gridfs.model.GridFSFile;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -16,6 +18,8 @@ import java.io.InputStream;
 @Service
 public class GridFsService {
 
+    private static final Logger logger = LoggerFactory.getLogger(GridFsService.class);
+
     @Autowired
     private GridFsOperations gridFsOperations;
 
@@ -24,15 +28,34 @@ public class GridFsService {
      * This method streams the InputStream directly without loading it into memory
      */
     public ObjectId storeFileStreaming(InputStream inputStream, String filename, String contentType) throws IOException {
-        return gridFsOperations.store(inputStream, filename, contentType);
+        logger.debug("Storing file in GridFS: filename={}, contentType={}", filename, contentType);
+        try {
+            ObjectId objectId = gridFsOperations.store(inputStream, filename, contentType);
+            logger.info("Successfully stored file in GridFS: filename={}, objectId={}", filename, objectId);
+            return objectId;
+        } catch (Exception e) {
+            logger.error("Failed to store file in GridFS: filename={}, contentType={}", filename, contentType, e);
+            if (e instanceof IOException) {
+                throw (IOException) e;
+            } else {
+                throw new IOException("Failed to store file in GridFS", e);
+            }
+        }
     }
 
     /**
      * Retrieve a file from GridFS by ObjectId
      */
     public GridFsResource getFile(ObjectId objectId) {
+        logger.debug("Retrieving file from GridFS: objectId={}", objectId);
         GridFSFile gridFSFile = gridFsOperations.findOne(Query.query(Criteria.where("_id").is(objectId)));
-        return gridFSFile != null ? gridFsOperations.getResource(gridFSFile) : null;
+        if (gridFSFile != null) {
+            logger.debug("File found in GridFS: objectId={}, filename={}", objectId, gridFSFile.getFilename());
+            return gridFsOperations.getResource(gridFSFile);
+        } else {
+            logger.warn("File not found in GridFS: objectId={}", objectId);
+            return null;
+        }
     }
 
     /**
@@ -46,7 +69,14 @@ public class GridFsService {
      * Delete a file from GridFS by ObjectId
      */
     public void deleteFile(ObjectId objectId) {
-        gridFsOperations.delete(Query.query(Criteria.where("_id").is(objectId)));
+        logger.debug("Deleting file from GridFS: objectId={}", objectId);
+        try {
+            gridFsOperations.delete(Query.query(Criteria.where("_id").is(objectId)));
+            logger.info("Successfully deleted file from GridFS: objectId={}", objectId);
+        } catch (Exception e) {
+            logger.error("Failed to delete file from GridFS: objectId={}", objectId, e);
+            throw e;
+        }
     }
 
     /**

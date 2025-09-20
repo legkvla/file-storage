@@ -4,15 +4,23 @@ spring:
   data:
     mongodb:
       uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/file_storage}
-  servlet:
-    multipart:
-      max-file-size: 1GB
-      max-request-size: 1GB
-      file-size-threshold: 0
-      location: ${java.io.tmpdir}
-      enabled: true
 server:
   port: ${SERVER_PORT:8080}
+
+# Logging Configuration
+logging:
+  level:
+    root: INFO
+    lambdalabs.filestorage: DEBUG
+    org.springframework.data.mongodb: DEBUG
+    org.mongodb.driver: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/file-storage.log
+    max-size: 10MB
+    max-history: 30
 
 ---
 spring:

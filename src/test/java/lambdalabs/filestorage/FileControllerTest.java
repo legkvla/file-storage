@@ -33,29 +33,22 @@ public class FileControllerTest {
     private GridFsService gridFsService;
 
     @Test
-    public void testUploadFile() throws Exception {
+    public void testUploadFileStream() throws Exception {
         // Mock data
         FileMetadata mockMetadata = new FileMetadata();
         mockMetadata.setId("test-id");
         mockMetadata.setFilename("test.txt");
-        mockMetadata.setSize(100L);
         mockMetadata.setVisibility(Visibility.PUBLIC);
 
         when(fileMetadataRepository.save(any(FileMetadata.class))).thenReturn(mockMetadata);
 
-        MockMultipartFile file = new MockMultipartFile(
-                "file", 
-                "test.txt", 
-                "text/plain", 
-                "Hello World".getBytes()
-        );
-
-        mockMvc.perform(multipart("/api/files/upload")
-                .file(file)
-                .param("visibility", "PUBLIC"))
+        mockMvc.perform(post("/api/files/upload-stream")
+                .param("filename", "test.txt")
+                .param("contentType", "text/plain")
+                .param("visibility", "PUBLIC")
+                .content("Hello World"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.filename").value("test.txt"))
-                .andExpect(jsonPath("$.size").value(100))
                 .andExpect(jsonPath("$.visibility").value("PUBLIC"));
     }
 

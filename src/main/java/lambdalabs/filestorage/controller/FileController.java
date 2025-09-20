@@ -5,6 +5,8 @@ import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
 import lambdalabs.filestorage.service.GridFsService;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
@@ -25,6 +27,8 @@ import java.util.Set;
 @RequestMapping("/api/files")
 public class FileController {
 
+    private static final Logger logger = LoggerFactory.getLogger(FileController.class);
+
     @Autowired
     private FileMetadataRepository fileMetadataRepository;
 
@@ -43,6 +47,9 @@ public class FileController {
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
         
+        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}", 
+                   filename, contentType, visibility, tags);
+        
         try {
             // Store file in GridFS using streaming
             ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, contentType);
@@ -56,9 +63,13 @@ public class FileController {
 
             // Save metadata
             FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
+            
+            logger.info("File uploaded successfully: filename={}, metadataId={}, gridFsId={}", 
+                       filename, savedMetadata.getId(), gridFsId);
 
             return ResponseEntity.ok(savedMetadata);
         } catch (IOException e) {
+            logger.error("File upload failed: filename={}, contentType={}", filename, contentType, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -68,16 +79,22 @@ public class FileController {
      */
     @GetMapping("/{id}/download")
     public ResponseEntity<InputStreamResource> downloadFile(@PathVariable String id) {
+        logger.info("File download request: metadataId={}", id);
+        
         Optional<FileMetadata> metadataOpt = fileMetadataRepository.findById(id);
         
         if (metadataOpt.isEmpty()) {
+            logger.warn("File metadata not found: metadataId={}", id);
             return ResponseEntity.notFound().build();
         }
 
         FileMetadata metadata = metadataOpt.get();
+        logger.debug("Found metadata: filename={}, gridFsId={}", metadata.getFilename(), metadata.getGridFsId());
+        
         GridFsResource resource = gridFsService.getFile(metadata.getGridFsId());
 
         if (resource == null) {
+            logger.warn("File not found in GridFS: metadataId={}, gridFsId={}", id, metadata.getGridFsId());
             return ResponseEntity.notFound().build();
         }
 
@@ -87,10 +104,14 @@ public class FileController {
             headers.setContentDispositionFormData("attachment", metadata.getFilename());
             headers.setContentLength(resource.contentLength());
 
+            logger.info("File download successful: filename={}, contentType={}, size={}", 
+                       metadata.getFilename(), resource.getContentType(), resource.contentLength());
+
             return ResponseEntity.ok()
                     .headers(headers)
                     .body(new InputStreamResource(resource.getInputStream()));
         } catch (IOException e) {
+            logger.error("File download failed: metadataId={}, filename={}", id, metadata.getFilename(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -106,28 +127,23 @@ public class FileController {
     }
 
     /**
-     * List all files with optional filtering
+     * List all files with optional filtering (optimized with MongoDB queries)
      */
     @GetMapping
     public List<FileMetadata> listFiles(
             @RequestParam(value = "visibility", required = false) Visibility visibility,
             @RequestParam(value = "tag", required = false) String tag) {
         
-        List<FileMetadata> allFiles = fileMetadataRepository.findAll();
-        
-        if (visibility != null) {
-            allFiles = allFiles.stream()
-                    .filter(file -> file.getVisibility() == visibility)
-                    .toList();
+        // Use optimized MongoDB queries instead of Java filtering
+        if (visibility != null && tag != null) {
+            return fileMetadataRepository.findByVisibilityAndTagContainingIgnoreCase(visibility, tag);
+        } else if (visibility != null) {
+            return fileMetadataRepository.findByVisibility(visibility);
+        } else if (tag != null) {
+            return fileMetadataRepository.findByTagContainingIgnoreCase(tag);
+        } else {
+            return fileMetadataRepository.findAll();
         }
-        
-        if (tag != null) {
-            allFiles = allFiles.stream()
-                    .filter(file -> file.getTags() != null && file.getTags().contains(tag))
-                    .toList();
-        }
-        
-        return allFiles;
     }
 
     /**
