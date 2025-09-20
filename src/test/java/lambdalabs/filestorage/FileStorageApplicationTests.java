@@ -1,4 +1,4 @@
-package com.example.filestorage;
+package lambdalabs.filestorage;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

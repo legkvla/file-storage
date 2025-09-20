@@ -1,7 +1,7 @@
-package com.example.filestorage.controller;
+package lambdalabs.filestorage.controller;
 
-import com.example.filestorage.model.FileMetadata;
-import com.example.filestorage.repository.FileMetadataRepository;
+import lambdalabs.filestorage.model.FileMetadata;
+import lambdalabs.filestorage.repository.FileMetadataRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;

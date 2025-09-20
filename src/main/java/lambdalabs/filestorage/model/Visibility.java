@@ -1,4 +1,4 @@
-package com.example.filestorage.model;
+package lambdalabs.filestorage.model;
 
 public enum Visibility {
     PRIVATE,

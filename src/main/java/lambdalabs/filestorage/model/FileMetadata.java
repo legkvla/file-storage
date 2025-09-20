@@ -1,4 +1,4 @@
-package com.example.filestorage.model;
+package lambdalabs.filestorage.model;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;

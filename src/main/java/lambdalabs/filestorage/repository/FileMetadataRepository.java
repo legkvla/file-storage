@@ -1,6 +1,6 @@
-package com.example.filestorage.repository;
+package lambdalabs.filestorage.repository;
 
-import com.example.filestorage.model.FileMetadata;
+import lambdalabs.filestorage.model.FileMetadata;
 import org.springframework.data.mongodb.repository.MongoRepository;
 
 public interface FileMetadataRepository extends MongoRepository<FileMetadata, String> {
