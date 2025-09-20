@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -31,7 +32,7 @@ public class FileController {
     private GridFsService gridFsService;
 
     /**
-     * Upload a file to GridFS and create metadata
+     * Upload a file to GridFS and create metadata (streaming for large files)
      */
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.CREATED)
@@ -46,13 +47,45 @@ public class FileController {
                 return ResponseEntity.badRequest().build();
             }
 
-            // Store file in GridFS
-            ObjectId gridFsId = gridFsService.storeFile(file);
+            // Store file in GridFS using streaming
+            ObjectId gridFsId = gridFsService.storeFileStreaming(file);
 
             // Create metadata
             FileMetadata metadata = new FileMetadata();
             metadata.setFilename(file.getOriginalFilename());
             metadata.setSize(file.getSize());
+            metadata.setVisibility(visibility);
+            metadata.setTags(tags);
+            metadata.setGridFsId(gridFsId);
+
+            // Save metadata
+            FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
+
+            return ResponseEntity.ok(savedMetadata);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Upload a file using raw InputStream (for very large files or custom clients)
+     */
+    @PostMapping("/upload-stream")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<FileMetadata> uploadFileStream(
+            @RequestParam("filename") String filename,
+            @RequestParam("contentType") String contentType,
+            @RequestParam(value = "visibility", defaultValue = "PRIVATE") Visibility visibility,
+            @RequestParam(value = "tags", required = false) Set<String> tags,
+            InputStream fileStream) {
+        
+        try {
+            // Store file in GridFS using streaming
+            ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, contentType);
+
+            // Create metadata
+            FileMetadata metadata = new FileMetadata();
+            metadata.setFilename(filename);
             metadata.setVisibility(visibility);
             metadata.setTags(tags);
             metadata.setGridFsId(gridFsId);

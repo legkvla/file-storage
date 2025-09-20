@@ -6,8 +6,11 @@ spring:
       uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/file_storage}
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 1GB
+      max-request-size: 1GB
+      file-size-threshold: 0
+      location: ${java.io.tmpdir}
+      enabled: true
 server:
   port: ${SERVER_PORT:8080}
 

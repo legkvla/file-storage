@@ -34,6 +34,23 @@ public class GridFsService {
     }
 
     /**
+     * Store a file in GridFS using streaming (memory efficient for large files)
+     * This method streams the MultipartFile directly without loading it into memory
+     */
+    public ObjectId storeFileStreaming(MultipartFile file) throws IOException {
+        // Use the InputStream directly - this streams the file without loading it into memory
+        return gridFsOperations.store(file.getInputStream(), file.getOriginalFilename(), file.getContentType());
+    }
+
+    /**
+     * Store a file in GridFS using streaming with custom parameters
+     * This method streams the InputStream directly without loading it into memory
+     */
+    public ObjectId storeFileStreaming(InputStream inputStream, String filename, String contentType) throws IOException {
+        return gridFsOperations.store(inputStream, filename, contentType);
+    }
+
+    /**
      * Retrieve a file from GridFS by ObjectId
      */
     public GridFsResource getFile(ObjectId objectId) {
