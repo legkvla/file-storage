@@ -31,8 +31,7 @@ public class FileMetadataRepository {
                 Criteria.where("ownerId").is(userId)
         ));
         query.skip(skip).limit(limit);
-        
-        // Add sorting
+
         Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
         query.with(Sort.by(direction, sortField));
         
@@ -62,8 +61,7 @@ public class FileMetadataRepository {
                 )
         );
         query.skip(skip).limit(limit);
-        
-        // Add sorting
+
         Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
         query.with(Sort.by(direction, sortField));
         
@@ -78,8 +76,7 @@ public class FileMetadataRepository {
                 )
         );
         query.skip(skip).limit(limit);
-        
-        // Add sorting
+
         Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
         query.with(Sort.by(direction, sortField));
         
@@ -97,8 +94,7 @@ public class FileMetadataRepository {
                         )
         );
         query.skip(skip).limit(limit);
-        
-        // Add sorting
+
         Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
         query.with(Sort.by(direction, sortField));
         
