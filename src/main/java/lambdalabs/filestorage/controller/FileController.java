@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lambdalabs.filestorage.model.FileMetadata;
+import lambdalabs.filestorage.model.SortBy;
 import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
 import lambdalabs.filestorage.service.CurrentUserService;
@@ -159,22 +160,43 @@ public class FileController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @Operation(summary = "List files", description = "List files visible to the current user with optional filtering, pagination, and sorting")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Files retrieved successfully"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
+    })
+    @SecurityRequirement(name = "Bearer Authentication")
     @GetMapping
     public List<FileMetadata> listFiles(
             @RequestParam(value = "visibility", required = false) Visibility visibility,
-            @RequestParam(value = "tag", required = false) String tag) {
+            @RequestParam(value = "tag", required = false) String tag,
+            @RequestParam(value = "skip", defaultValue = "0") int skip,
+            @RequestParam(value = "limit", defaultValue = "50") int limit,
+            @RequestParam(value = "sort", defaultValue = "ID") SortBy sortBy,
+            @RequestParam(value = "desc", defaultValue = "false") boolean desc) {
 
         String currentUserId = currentUserService.getCurrentUserId()
                 .orElseThrow(() -> new SecurityException("User not authenticated"));
 
+        // Validate pagination parameters
+        if (skip < 0) {
+            skip = 0;
+        }
+        if (limit <= 0 || limit > 1000) {
+            limit = 50; // Default limit with max cap
+        }
+
+        // Convert enum to string for repository
+        String sortField = sortBy.name().toLowerCase();
+
         if (visibility != null && tag != null) {
-            return fileMetadataRepository.findByVisibilityAndTagVisibleToUser(visibility, tag, currentUserId);
+            return fileMetadataRepository.findByVisibilityAndTagVisibleToUser(visibility, tag, currentUserId, skip, limit, sortField, desc);
         } else if (visibility != null) {
-            return fileMetadataRepository.findByVisibilityVisibleToUser(visibility, currentUserId);
+            return fileMetadataRepository.findByVisibilityVisibleToUser(visibility, currentUserId, skip, limit, sortField, desc);
         } else if (tag != null) {
-            return fileMetadataRepository.findByTagVisibleToUser(tag, currentUserId);
+            return fileMetadataRepository.findByTagVisibleToUser(tag, currentUserId, skip, limit, sortField, desc);
         } else {
-            return fileMetadataRepository.findAllVisibleToUser(currentUserId);
+            return fileMetadataRepository.findAllVisibleToUser(currentUserId, skip, limit, sortField, desc);
         }
     }
 

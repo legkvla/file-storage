@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -24,11 +25,18 @@ public class FileMetadataRepository {
         return saved;
     }
 
-    public List<FileMetadata> findAllVisibleToUser(String userId) {
+
+    public List<FileMetadata> findAllVisibleToUser(String userId, int skip, int limit, String sortField, boolean desc) {
         Query query = new Query(new Criteria().orOperator(
                 Criteria.where("visibility").is(Visibility.PUBLIC),
                 Criteria.where("ownerId").is(userId)
         ));
+        query.skip(skip).limit(limit);
+        
+        // Add sorting
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        query.with(Sort.by(direction, sortField));
+        
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
@@ -47,25 +55,40 @@ public class FileMetadataRepository {
         return Optional.ofNullable(fileMetadata);
     }
 
-    public List<FileMetadata> findByVisibilityVisibleToUser(Visibility visibility, String userId) {
+
+    public List<FileMetadata> findByVisibilityVisibleToUser(Visibility visibility, String userId, int skip, int limit, String sortField, boolean desc) {
         Query query = new Query(Criteria.where("visibility").is(visibility).orOperator(
                     Criteria.where("visibility").is(Visibility.PUBLIC),
                     Criteria.where("ownerId").is(userId)
                 )
         );
+        query.skip(skip).limit(limit);
+        
+        // Add sorting
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        query.with(Sort.by(direction, sortField));
+        
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    public List<FileMetadata> findByTagVisibleToUser(String tag, String userId) {
+
+    public List<FileMetadata> findByTagVisibleToUser(String tag, String userId, int skip, int limit, String sortField, boolean desc) {
         Query query = new Query(Criteria.where("tags").in(tag).orOperator(
                     Criteria.where("visibility").is(Visibility.PUBLIC),
                     Criteria.where("ownerId").is(userId)
                 )
         );
+        query.skip(skip).limit(limit);
+        
+        // Add sorting
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        query.with(Sort.by(direction, sortField));
+        
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    public List<FileMetadata> findByVisibilityAndTagVisibleToUser(Visibility visibility, String tag, String userId) {
+
+    public List<FileMetadata> findByVisibilityAndTagVisibleToUser(Visibility visibility, String tag, String userId, int skip, int limit, String sortField, boolean desc) {
         Query query = new Query(
                 Criteria.where("visibility").is(visibility)
                         .and("tags").in(tag)
@@ -74,6 +97,12 @@ public class FileMetadataRepository {
                                 Criteria.where("ownerId").is(userId)
                         )
         );
+        query.skip(skip).limit(limit);
+        
+        // Add sorting
+        Sort.Direction direction = desc ? Sort.Direction.DESC : Sort.Direction.ASC;
+        query.with(Sort.by(direction, sortField));
+        
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 

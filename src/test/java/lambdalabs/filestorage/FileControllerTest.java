@@ -71,7 +71,6 @@ public class FileControllerTest {
         FileMetadata mockMetadata = new FileMetadata();
         mockMetadata.setId("test-id");
         mockMetadata.setFilename("test.txt");
-        mockMetadata.setSize(100L);
         mockMetadata.setVisibility(Visibility.PUBLIC);
         mockMetadata.setOwnerId("test-user-id");
 

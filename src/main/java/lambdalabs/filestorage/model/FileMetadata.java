@@ -50,9 +50,6 @@ public class FileMetadata {
     public String getFilename() { return filename; }
     public void setFilename(String filename) { this.filename = filename; }
 
-    public Long getSize() { return size; }
-    public void setSize(Long size) { this.size = size; }
-
     public Visibility getVisibility() { return visibility; }
     public void setVisibility(Visibility visibility) { this.visibility = visibility; }
 
