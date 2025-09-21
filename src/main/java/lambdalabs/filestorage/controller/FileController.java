@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import lambdalabs.filestorage.dto.UpdateFileRequest;
 import lambdalabs.filestorage.model.FileMetadata;
 import lambdalabs.filestorage.model.SortBy;
 import lambdalabs.filestorage.model.Visibility;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -239,12 +241,22 @@ public class FileController {
     }
 
     /**
-     * Update file metadata (only by owner)
+     * Update file metadata (only by owner) - PATCH allows partial updates
      */
-    @PutMapping("/{id}")
+    @Operation(summary = "Update file metadata", description = "Update filename and tags for a file (only by owner)")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "File metadata updated successfully",
+                content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
+        @ApiResponse(responseCode = "400", description = "Invalid request data"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token"),
+        @ApiResponse(responseCode = "403", description = "Forbidden - User does not own the file"),
+        @ApiResponse(responseCode = "404", description = "File not found")
+    })
+    @SecurityRequirement(name = "Bearer Authentication")
+    @PatchMapping("/{id}")
     public ResponseEntity<FileMetadata> updateFileMetadata(
             @PathVariable String id,
-            @RequestBody FileMetadata updatedMetadata) {
+            @Valid @RequestBody UpdateFileRequest updateRequest) {
         
         // Get current user ID
         String currentUserId = currentUserService.getCurrentUserId()
@@ -259,20 +271,18 @@ public class FileController {
         }
 
         FileMetadata existing = existingOpt.get();
-        
-        // Double-check ownership (user can only update their own files)
+
         if (!currentUserId.equals(existing.getOwnerId())) {
             logger.warn("User attempted to update file they don't own: metadataId={}, userId={}, ownerId={}", 
                        id, currentUserId, existing.getOwnerId());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        
-        // Update only allowed fields (ownerId cannot be changed)
-        if (updatedMetadata.getVisibility() != null) {
-            existing.setVisibility(updatedMetadata.getVisibility());
+
+        if (updateRequest.getFilename() != null) {
+            existing.setFilename(updateRequest.getFilename());
         }
-        if (updatedMetadata.getTags() != null) {
-            existing.setTags(updatedMetadata.getTags());
+        if (updateRequest.getTags() != null) {
+            existing.setTags(updateRequest.getTags());
         }
 
         FileMetadata saved = fileMetadataRepository.save(existing);
