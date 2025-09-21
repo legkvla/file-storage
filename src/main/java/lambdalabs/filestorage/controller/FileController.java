@@ -94,6 +94,9 @@ public class FileController {
             // Store file in GridFS using streaming
             ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, contentType);
 
+            // Calculate MD5 hash from the stored GridFS file
+            String md5Hash = gridFsService.calculateMD5FromGridFS(gridFsId);
+
             // Create metadata
             FileMetadata metadata = new FileMetadata();
             metadata.setFilename(filename);
@@ -101,12 +104,13 @@ public class FileController {
             metadata.setTags(tags);
             metadata.setOwnerId(currentUserId);
             metadata.setGridFsId(gridFsId);
+            metadata.setMd5(md5Hash);
 
             // Save metadata
             FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
             
-            logger.info("File uploaded successfully: filename={}, metadataId={}, gridFsId={}", 
-                       filename, savedMetadata.getId(), gridFsId);
+            logger.info("File uploaded successfully: filename={}, metadataId={}, gridFsId={}, md5={}", 
+                       filename, savedMetadata.getId(), gridFsId, md5Hash);
 
             return ResponseEntity.ok(savedMetadata);
         } catch (IOException e) {

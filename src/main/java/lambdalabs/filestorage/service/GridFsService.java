@@ -10,10 +10,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsOperations;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 @Service
 public class GridFsService {
@@ -100,5 +102,37 @@ public class GridFsService {
     public boolean fileExists(String filename) {
         GridFSFile gridFSFile = gridFsOperations.findOne(Query.query(Criteria.where("filename").is(filename)));
         return gridFSFile != null;
+    }
+
+    /**
+     * Calculate MD5 hash from a GridFS file by ObjectId
+     * This method streams the file content without loading it entirely into memory
+     */
+    public String calculateMD5FromGridFS(ObjectId objectId) throws IOException {
+        logger.debug("Calculating MD5 hash for GridFS file: objectId={}", objectId);
+        
+        GridFsResource resource = getFile(objectId);
+        if (resource == null) {
+            throw new IOException("File not found in GridFS: " + objectId);
+        }
+        
+        try (InputStream inputStream = resource.getInputStream()) {
+            MessageDigest md5 = MessageDigest.getInstance("MD5");
+            byte[] buffer = new byte[8192]; // 8KB buffer for efficient reading
+            int bytesRead;
+            
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                md5.update(buffer, 0, bytesRead);
+            }
+            
+            byte[] digest = md5.digest();
+            String md5Hash = HexFormat.of().formatHex(digest);
+            
+            logger.info("MD5 hash calculated for GridFS file: objectId={}, md5={}", objectId, md5Hash);
+            return md5Hash;
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("MD5 algorithm not available", e);
+            throw new IOException("MD5 algorithm not available", e);
+        }
     }
 }

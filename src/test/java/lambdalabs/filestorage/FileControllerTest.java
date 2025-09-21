@@ -8,13 +8,12 @@ import lambdalabs.filestorage.repository.FileMetadataRepository;
 import lambdalabs.filestorage.service.CurrentUserService;
 import lambdalabs.filestorage.service.GridFsService;
 import lambdalabs.filestorage.service.JwtService;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
@@ -51,19 +50,26 @@ public class FileControllerTest {
         mockMetadata.setFilename("test.txt");
         mockMetadata.setVisibility(Visibility.PUBLIC);
         mockMetadata.setOwnerId("test-user-id");
+        mockMetadata.setMd5("d41d8cd98f00b204e9800998ecf8427e");
 
+        ObjectId mockObjectId = new ObjectId();
+
+        when(fileMetadataRepository.existsByFilenameAndOwnerId("test.txt", "test-user-id")).thenReturn(false);
+        when(gridFsService.storeFileStreaming(any(), any(), any())).thenReturn(mockObjectId);
+        when(gridFsService.calculateMD5FromGridFS(mockObjectId)).thenReturn("d41d8cd98f00b204e9800998ecf8427e");
         when(fileMetadataRepository.save(any(FileMetadata.class))).thenReturn(mockMetadata);
         when(currentUserService.getCurrentUserId()).thenReturn(java.util.Optional.of("test-user-id"));
         when(currentUserService.getCurrentUserIdentity()).thenReturn(java.util.Optional.of("test-user"));
 
-        mockMvc.perform(post("/api/files/upload-stream")
+        mockMvc.perform(post("/api/files/upload")
                 .param("filename", "test.txt")
                 .param("contentType", "text/plain")
                 .param("visibility", "PUBLIC")
                 .content("Hello World"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.filename").value("test.txt"))
-                .andExpect(jsonPath("$.visibility").value("PUBLIC"));
+                .andExpect(jsonPath("$.visibility").value("PUBLIC"))
+                .andExpect(jsonPath("$.md5").value("d41d8cd98f00b204e9800998ecf8427e"));
     }
 
     @Test
