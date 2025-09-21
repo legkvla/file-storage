@@ -1,7 +1,6 @@
 package lambdalabs.filestorage.config;
 
 import lambdalabs.filestorage.model.FileMetadata;
-import lambdalabs.filestorage.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +22,6 @@ public class MongoIndexConfig {
     @PostConstruct
     public void createIndexes() {
         createFileMetadataIndexes();
-        createUserIndexes();
     }
 
     private void createFileMetadataIndexes() {
@@ -45,16 +43,4 @@ public class MongoIndexConfig {
         }
     }
 
-    private void createUserIndexes() {
-        IndexOperations indexOps = mongoTemplate.indexOps(User.class);
-        
-        try {
-            indexOps.createIndex(new Index().on("identity", org.springframework.data.domain.Sort.Direction.ASC).unique());
-            
-            logger.info("MongoDB indexes created successfully for User collection");
-
-        } catch (Exception e) {
-            logger.error("Error creating User indexes: {}", e.getMessage(), e);
-        }
-    }
 }

@@ -5,14 +5,12 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lambdalabs.filestorage.dto.UpdateFileRequest;
 import lambdalabs.filestorage.model.FileMetadata;
 import lambdalabs.filestorage.model.SortBy;
 import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
-import lambdalabs.filestorage.service.CurrentUserService;
 import lambdalabs.filestorage.service.GridFsService;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
@@ -48,9 +46,6 @@ public class FileController {
     @Autowired
     private GridFsService gridFsService;
 
-    @Autowired
-    private CurrentUserService currentUserService;
-
     /**
      * Upload a file using raw InputStream
      */
@@ -59,31 +54,24 @@ public class FileController {
         @ApiResponse(responseCode = "201", description = "File uploaded successfully",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
         @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
         @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
     })
-    @SecurityRequirement(name = "Bearer Authentication")
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<?> uploadFileStream(
+            @RequestHeader("User-Id") String userId,
             @RequestParam("filename") String filename,
             @RequestParam("contentType") String contentType,
             @RequestParam(value = "visibility", defaultValue = "PRIVATE") Visibility visibility,
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
         
-        // Get current user ID
-        String currentUserId = currentUserService.getCurrentUserId()
-                .orElseThrow(() -> new SecurityException("User not authenticated"));
-        
-        String currentUserIdentity = currentUserService.getCurrentUserIdentity()
-                .orElse("unknown");
-        
-        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}, user={}, userId={}", 
-                   filename, contentType, visibility, tags, currentUserIdentity, currentUserId);
+        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}, userId={}", 
+                   filename, contentType, visibility, tags, userId);
         
         // Check if filename already exists for this user
-        if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, currentUserId)) {
+        if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, userId)) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Filename already exists");
             error.put("message", "A file with this filename already exists for your account");
@@ -102,7 +90,7 @@ public class FileController {
             metadata.setFilename(filename);
             metadata.setVisibility(visibility);
             metadata.setTags(tags);
-            metadata.setOwnerId(currentUserId);
+            metadata.setOwnerId(userId);
             metadata.setGridFsId(gridFsId);
             metadata.setMd5(md5Hash);
 
@@ -120,18 +108,16 @@ public class FileController {
     }
 
     @GetMapping("/{id}/download")
-    public ResponseEntity<InputStreamResource> downloadFile(@PathVariable String id) {
-        logger.info("File download request: metadataId={}", id);
-        
-        // Get current user ID
-        String currentUserId = currentUserService.getCurrentUserId()
-                .orElseThrow(() -> new SecurityException("User not authenticated"));
+    public ResponseEntity<InputStreamResource> downloadFile(
+            @RequestHeader("User-Id") String userId,
+            @PathVariable String id) {
+        logger.info("File download request: metadataId={}, userId={}", id, userId);
         
         // Find file with ownership check
-        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
+        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
         
         if (metadataOpt.isEmpty()) {
-            logger.warn("File metadata not found or access denied: metadataId={}, userId={}", id, currentUserId);
+            logger.warn("File metadata not found or access denied: metadataId={}, userId={}", id, userId);
             return ResponseEntity.notFound().build();
         }
 
@@ -164,13 +150,11 @@ public class FileController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<FileMetadata> getFileMetadata(@PathVariable String id) {
-        // Get current user ID
-        String currentUserId = currentUserService.getCurrentUserId()
-                .orElseThrow(() -> new SecurityException("User not authenticated"));
-        
+    public ResponseEntity<FileMetadata> getFileMetadata(
+            @RequestHeader("User-Id") String userId,
+            @PathVariable String id) {
         // Find file with ownership check
-        Optional<FileMetadata> metadata = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
+        Optional<FileMetadata> metadata = fileMetadataRepository.findByIdVisibleToUser(id, userId);
         return metadata.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -178,20 +162,17 @@ public class FileController {
     @Operation(summary = "List files", description = "List files visible to the current user with optional filtering, pagination, and sorting")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Files retrieved successfully"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header")
     })
-    @SecurityRequirement(name = "Bearer Authentication")
     @GetMapping
     public List<FileMetadata> listFiles(
+            @RequestHeader("User-Id") String userId,
             @RequestParam(value = "visibility", required = false) Visibility visibility,
             @RequestParam(value = "tag", required = false) String tag,
             @RequestParam(value = "skip", defaultValue = "0") int skip,
             @RequestParam(value = "limit", defaultValue = "50") int limit,
             @RequestParam(value = "sort", defaultValue = "ID") SortBy sortBy,
             @RequestParam(value = "desc", defaultValue = "false") boolean desc) {
-
-        String currentUserId = currentUserService.getCurrentUserId()
-                .orElseThrow(() -> new SecurityException("User not authenticated"));
 
         // Validate pagination parameters
         if (skip < 0) {
@@ -205,24 +186,22 @@ public class FileController {
         String sortField = sortBy.name().toLowerCase();
 
         if (visibility != null && tag != null) {
-            return fileMetadataRepository.findByVisibilityAndTagVisibleToUser(visibility, tag, currentUserId, skip, limit, sortField, desc);
+            return fileMetadataRepository.findByVisibilityAndTagVisibleToUser(visibility, tag, userId, skip, limit, sortField, desc);
         } else if (visibility != null) {
-            return fileMetadataRepository.findByVisibilityVisibleToUser(visibility, currentUserId, skip, limit, sortField, desc);
+            return fileMetadataRepository.findByVisibilityVisibleToUser(visibility, userId, skip, limit, sortField, desc);
         } else if (tag != null) {
-            return fileMetadataRepository.findByTagVisibleToUser(tag, currentUserId, skip, limit, sortField, desc);
+            return fileMetadataRepository.findByTagVisibleToUser(tag, userId, skip, limit, sortField, desc);
         } else {
-            return fileMetadataRepository.findAllVisibleToUser(currentUserId, skip, limit, sortField, desc);
+            return fileMetadataRepository.findAllVisibleToUser(userId, skip, limit, sortField, desc);
         }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteFile(@PathVariable String id) {
-        // Get current user ID
-        String currentUserId = currentUserService.getCurrentUserId()
-                .orElseThrow(() -> new SecurityException("User not authenticated"));
-        
+    public ResponseEntity<Void> deleteFile(
+            @RequestHeader("User-Id") String userId,
+            @PathVariable String id) {
         // Find file with ownership check
-        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
+        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
         
         if (metadataOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -230,7 +209,7 @@ public class FileController {
 
         FileMetadata metadata = metadataOpt.get();
 
-        if (!currentUserId.equals(metadata.getOwnerId())) {
+        if (!userId.equals(metadata.getOwnerId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         
@@ -239,16 +218,16 @@ public class FileController {
             gridFsService.deleteFile(metadata.getGridFsId());
             
             // Delete metadata (with ownership check)
-            boolean deleted = fileMetadataRepository.deleteByIdAndOwner(id, currentUserId);
+            boolean deleted = fileMetadataRepository.deleteByIdAndOwner(id, userId);
             
             if (deleted) {
                 return ResponseEntity.noContent().build();
             } else {
-                logger.error("Failed to delete file metadata: metadataId={}, userId={}", id, currentUserId);
+                logger.error("Failed to delete file metadata: metadataId={}, userId={}", id, userId);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
             }
         } catch (Exception e) {
-            logger.error("Error deleting file: metadataId={}, userId={}", id, currentUserId, e);
+            logger.error("Error deleting file: metadataId={}, userId={}", id, userId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
@@ -261,41 +240,37 @@ public class FileController {
         @ApiResponse(responseCode = "200", description = "File metadata updated successfully",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
         @ApiResponse(responseCode = "400", description = "Invalid request data"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token"),
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
         @ApiResponse(responseCode = "403", description = "Forbidden - User does not own the file"),
         @ApiResponse(responseCode = "404", description = "File not found"),
         @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
     })
-    @SecurityRequirement(name = "Bearer Authentication")
     @PatchMapping("/{id}")
     public ResponseEntity<?> updateFileMetadata(
+            @RequestHeader("User-Id") String userId,
             @PathVariable String id,
             @Valid @RequestBody UpdateFileRequest updateRequest) {
         
-        // Get current user ID
-        String currentUserId = currentUserService.getCurrentUserId()
-                .orElseThrow(() -> new SecurityException("User not authenticated"));
-        
         // Find file with ownership check
-        Optional<FileMetadata> existingOpt = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
+        Optional<FileMetadata> existingOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
         
         if (existingOpt.isEmpty()) {
-            logger.warn("File not found or access denied for update: metadataId={}, userId={}", id, currentUserId);
+            logger.warn("File not found or access denied for update: metadataId={}, userId={}", id, userId);
             return ResponseEntity.notFound().build();
         }
 
         FileMetadata existing = existingOpt.get();
 
-        if (!currentUserId.equals(existing.getOwnerId())) {
+        if (!userId.equals(existing.getOwnerId())) {
             logger.warn("User attempted to update file they don't own: metadataId={}, userId={}, ownerId={}", 
-                       id, currentUserId, existing.getOwnerId());
+                       id, userId, existing.getOwnerId());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         // Check if new filename already exists for this user (if filename is being updated)
         if (updateRequest.getFilename() != null && !updateRequest.getFilename().equals(existing.getFilename())) {
-            if (fileMetadataRepository.existsByFilenameAndOwnerId(updateRequest.getFilename(), currentUserId)) {
-                logger.warn("File update failed - filename already exists: filename={}, userId={}", updateRequest.getFilename(), currentUserId);
+            if (fileMetadataRepository.existsByFilenameAndOwnerId(updateRequest.getFilename(), userId)) {
+                logger.warn("File update failed - filename already exists: filename={}, userId={}", updateRequest.getFilename(), userId);
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Filename already exists");
                 error.put("message", "A file with this filename already exists for your account");
@@ -309,29 +284,8 @@ public class FileController {
 
         FileMetadata saved = fileMetadataRepository.save(existing);
         logger.info("File metadata updated: metadataId={}, filename={}, userId={}", 
-                   id, saved.getFilename(), currentUserId);
+                   id, saved.getFilename(), userId);
         return ResponseEntity.ok(saved);
     }
 
-    @Operation(summary = "Get current user info", description = "Get information about the currently authenticated user")
-    @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "User information retrieved successfully"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
-    })
-    @SecurityRequirement(name = "Bearer Authentication")
-    @GetMapping("/current-user")
-    public ResponseEntity<?> getCurrentUserInfo() {
-
-        String userIdentity = currentUserService.getCurrentUserIdentity()
-                .orElse("unknown");
-
-        String userId = currentUserService.getCurrentUserId()
-                .orElse("unknown");
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("identity", userIdentity);
-        response.put("userId", userId);
-        
-        return ResponseEntity.ok(response);
-    }
 }
