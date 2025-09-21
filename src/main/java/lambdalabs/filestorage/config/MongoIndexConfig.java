@@ -35,6 +35,8 @@ public class MongoIndexConfig {
             indexOps.createIndex(new Index().on("ownerId", org.springframework.data.domain.Sort.Direction.ASC));
             indexOps.createIndex(new Index().on("visibility", org.springframework.data.domain.Sort.Direction.ASC)
                     .on("ownerId", org.springframework.data.domain.Sort.Direction.ASC));
+            indexOps.createIndex(new Index().on("filename", org.springframework.data.domain.Sort.Direction.ASC)
+                    .on("ownerId", org.springframework.data.domain.Sort.Direction.ASC));
             
             logger.info("MongoDB indexes created successfully for FileMetadata collection");
 

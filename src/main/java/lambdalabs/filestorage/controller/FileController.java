@@ -59,12 +59,13 @@ public class FileController {
         @ApiResponse(responseCode = "201", description = "File uploaded successfully",
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
         @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
+        @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token"),
+        @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
     })
     @SecurityRequirement(name = "Bearer Authentication")
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.CREATED)
-    public ResponseEntity<FileMetadata> uploadFileStream(
+    public ResponseEntity<?> uploadFileStream(
             @RequestParam("filename") String filename,
             @RequestParam("contentType") String contentType,
             @RequestParam(value = "visibility", defaultValue = "PRIVATE") Visibility visibility,
@@ -80,6 +81,14 @@ public class FileController {
         
         logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}, user={}, userId={}", 
                    filename, contentType, visibility, tags, currentUserIdentity, currentUserId);
+        
+        // Check if filename already exists for this user
+        if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, currentUserId)) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Filename already exists");
+            error.put("message", "A file with this filename already exists for your account");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        }
         
         try {
             // Store file in GridFS using streaming
@@ -250,11 +259,12 @@ public class FileController {
         @ApiResponse(responseCode = "400", description = "Invalid request data"),
         @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token"),
         @ApiResponse(responseCode = "403", description = "Forbidden - User does not own the file"),
-        @ApiResponse(responseCode = "404", description = "File not found")
+        @ApiResponse(responseCode = "404", description = "File not found"),
+        @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
     })
     @SecurityRequirement(name = "Bearer Authentication")
     @PatchMapping("/{id}")
-    public ResponseEntity<FileMetadata> updateFileMetadata(
+    public ResponseEntity<?> updateFileMetadata(
             @PathVariable String id,
             @Valid @RequestBody UpdateFileRequest updateRequest) {
         
@@ -278,7 +288,15 @@ public class FileController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-        if (updateRequest.getFilename() != null) {
+        // Check if new filename already exists for this user (if filename is being updated)
+        if (updateRequest.getFilename() != null && !updateRequest.getFilename().equals(existing.getFilename())) {
+            if (fileMetadataRepository.existsByFilenameAndOwnerId(updateRequest.getFilename(), currentUserId)) {
+                logger.warn("File update failed - filename already exists: filename={}, userId={}", updateRequest.getFilename(), currentUserId);
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "Filename already exists");
+                error.put("message", "A file with this filename already exists for your account");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+            }
             existing.setFilename(updateRequest.getFilename());
         }
         if (updateRequest.getTags() != null) {

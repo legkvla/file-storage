@@ -21,8 +21,7 @@ public class FileMetadataRepository {
     private static final String COLLECTION_NAME = "file_metadata";
 
     public FileMetadata save(FileMetadata fileMetadata) {
-        FileMetadata saved = mongoTemplate.save(fileMetadata, COLLECTION_NAME);
-        return saved;
+        return mongoTemplate.save(fileMetadata, COLLECTION_NAME);
     }
 
 
@@ -132,5 +131,10 @@ public class FileMetadataRepository {
 
     public long count() {
         return mongoTemplate.count(new Query(), FileMetadata.class, COLLECTION_NAME);
+    }
+
+    public boolean existsByFilenameAndOwnerId(String filename, String ownerId) {
+        Query query = new Query(Criteria.where("filename").is(filename).and("ownerId").is(ownerId));
+        return mongoTemplate.exists(query, FileMetadata.class, COLLECTION_NAME);
     }
 }
