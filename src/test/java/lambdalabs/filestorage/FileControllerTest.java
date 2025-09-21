@@ -7,6 +7,7 @@ import lambdalabs.filestorage.model.Visibility;
 import lambdalabs.filestorage.repository.FileMetadataRepository;
 import lambdalabs.filestorage.service.CurrentUserService;
 import lambdalabs.filestorage.service.GridFsService;
+import lambdalabs.filestorage.service.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -39,6 +40,9 @@ public class FileControllerTest {
     @MockBean
     private CurrentUserService currentUserService;
 
+    @MockBean
+    private JwtService jwtService;
+
     @Test
     public void testUploadFileStream() throws Exception {
         // Mock data
@@ -46,8 +50,10 @@ public class FileControllerTest {
         mockMetadata.setId("test-id");
         mockMetadata.setFilename("test.txt");
         mockMetadata.setVisibility(Visibility.PUBLIC);
+        mockMetadata.setOwnerId("test-user-id");
 
         when(fileMetadataRepository.save(any(FileMetadata.class))).thenReturn(mockMetadata);
+        when(currentUserService.getCurrentUserId()).thenReturn(java.util.Optional.of("test-user-id"));
         when(currentUserService.getCurrentUserIdentity()).thenReturn(java.util.Optional.of("test-user"));
 
         mockMvc.perform(post("/api/files/upload-stream")
@@ -67,8 +73,10 @@ public class FileControllerTest {
         mockMetadata.setFilename("test.txt");
         mockMetadata.setSize(100L);
         mockMetadata.setVisibility(Visibility.PUBLIC);
+        mockMetadata.setOwnerId("test-user-id");
 
-        when(fileMetadataRepository.findById("test-id")).thenReturn(Optional.of(mockMetadata));
+        when(fileMetadataRepository.findByIdVisibleToUser("test-id", "test-user-id")).thenReturn(Optional.of(mockMetadata));
+        when(currentUserService.getCurrentUserId()).thenReturn(java.util.Optional.of("test-user-id"));
 
         mockMvc.perform(get("/api/files/test-id"))
                 .andExpect(status().isOk())
@@ -78,7 +86,8 @@ public class FileControllerTest {
 
     @Test
     public void testGetFileMetadataNotFound() throws Exception {
-        when(fileMetadataRepository.findById("nonexistent")).thenReturn(Optional.empty());
+        when(fileMetadataRepository.findByIdVisibleToUser("nonexistent", "test-user-id")).thenReturn(Optional.empty());
+        when(currentUserService.getCurrentUserId()).thenReturn(java.util.Optional.of("test-user-id"));
 
         mockMvc.perform(get("/api/files/nonexistent"))
                 .andExpect(status().isNotFound());

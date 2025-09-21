@@ -30,8 +30,12 @@ public class MongoIndexConfig {
         IndexOperations indexOps = mongoTemplate.indexOps(FileMetadata.class);
         
         try {
-            // Tags index - multikey index for array field to support $in queries
+
             indexOps.createIndex(new Index().on("tags", org.springframework.data.domain.Sort.Direction.ASC));
+            indexOps.createIndex(new Index().on("filename", org.springframework.data.domain.Sort.Direction.ASC).unique());
+            indexOps.createIndex(new Index().on("ownerId", org.springframework.data.domain.Sort.Direction.ASC));
+            indexOps.createIndex(new Index().on("visibility", org.springframework.data.domain.Sort.Direction.ASC)
+                    .on("ownerId", org.springframework.data.domain.Sort.Direction.ASC));
             
             logger.info("MongoDB indexes created successfully for FileMetadata collection");
 
@@ -44,7 +48,6 @@ public class MongoIndexConfig {
         IndexOperations indexOps = mongoTemplate.indexOps(User.class);
         
         try {
-            // Create unique index on identity field
             indexOps.createIndex(new Index().on("identity", org.springframework.data.domain.Sort.Direction.ASC).unique());
             
             logger.info("MongoDB indexes created successfully for User collection");

@@ -19,74 +19,88 @@ public class FileMetadataRepository {
 
     private static final String COLLECTION_NAME = "file_metadata";
 
-    /**
-     * Save a file metadata document
-     */
     public FileMetadata save(FileMetadata fileMetadata) {
         FileMetadata saved = mongoTemplate.save(fileMetadata, COLLECTION_NAME);
         return saved;
     }
 
-    /**
-     * Find all file metadata documents
-     */
-    public List<FileMetadata> findAll() {
-        return mongoTemplate.findAll(FileMetadata.class, COLLECTION_NAME);
+    public List<FileMetadata> findAllVisibleToUser(String userId) {
+        Query query = new Query(new Criteria().orOperator(
+                Criteria.where("visibility").is(Visibility.PUBLIC),
+                Criteria.where("ownerId").is(userId)
+        ));
+        return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    /**
-     * Find file metadata by ID
-     */
     public Optional<FileMetadata> findById(String id) {
         FileMetadata fileMetadata = mongoTemplate.findById(id, FileMetadata.class, COLLECTION_NAME);
         return Optional.ofNullable(fileMetadata);
     }
 
-    /**
-     * Find files by visibility
-     */
-    public List<FileMetadata> findByVisibility(Visibility visibility) {
-        Query query = new Query(Criteria.where("visibility").is(visibility));
+    public Optional<FileMetadata> findByIdVisibleToUser(String id, String userId) {
+        Query query = new Query(Criteria.where("id").is(id).orOperator(
+                    Criteria.where("visibility").is(Visibility.PUBLIC),
+                    Criteria.where("ownerId").is(userId)
+                )
+        );
+        FileMetadata fileMetadata = mongoTemplate.findOne(query, FileMetadata.class, COLLECTION_NAME);
+        return Optional.ofNullable(fileMetadata);
+    }
+
+    public List<FileMetadata> findByVisibilityVisibleToUser(Visibility visibility, String userId) {
+        Query query = new Query(Criteria.where("visibility").is(visibility).orOperator(
+                    Criteria.where("visibility").is(Visibility.PUBLIC),
+                    Criteria.where("ownerId").is(userId)
+                )
+        );
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    /**
-     * Find files by tag (case-insensitive)
-     */
-    public List<FileMetadata> findByTagContainingIgnoreCase(String tag) {
-        Query query = new Query(Criteria.where("tags").in(tag));
+    public List<FileMetadata> findByTagVisibleToUser(String tag, String userId) {
+        Query query = new Query(Criteria.where("tags").in(tag).orOperator(
+                    Criteria.where("visibility").is(Visibility.PUBLIC),
+                    Criteria.where("ownerId").is(userId)
+                )
+        );
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    /**
-     * Find files by visibility and tag
-     */
-    public List<FileMetadata> findByVisibilityAndTagContainingIgnoreCase(Visibility visibility, String tag) {
-        Query query = new Query(Criteria.where("visibility").is(visibility)
-                .and("tags").in(tag));
-        List<FileMetadata> results = mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
-        return results;
+    public List<FileMetadata> findByVisibilityAndTagVisibleToUser(Visibility visibility, String tag, String userId) {
+        Query query = new Query(
+                Criteria.where("visibility").is(visibility)
+                        .and("tags").in(tag)
+                        .orOperator(
+                                Criteria.where("visibility").is(Visibility.PUBLIC),
+                                Criteria.where("ownerId").is(userId)
+                        )
+        );
+        return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    /**
-     * Delete file metadata by ID
-     */
+    public boolean deleteByIdAndOwner(String id, String ownerId) {
+        return mongoTemplate.remove(
+                new Query(Criteria.where("id").is(id).and("ownerId").is(ownerId)),
+                FileMetadata.class, COLLECTION_NAME).
+                getDeletedCount() > 0;
+    }
+
     public void deleteById(String id) {
-        Query query = new Query(Criteria.where("id").is(id));
-        mongoTemplate.remove(query, FileMetadata.class, COLLECTION_NAME);
+        mongoTemplate.remove(new Query(Criteria.where("id").is(id)), FileMetadata.class, COLLECTION_NAME);
     }
 
-    /**
-     * Check if file metadata exists by ID
-     */
     public boolean existsById(String id) {
         Query query = new Query(Criteria.where("id").is(id));
         return mongoTemplate.exists(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    /**
-     * Count all file metadata documents
-     */
+    public long countVisibleToUser(String userId) {
+        Query query = new Query(new Criteria().orOperator(
+                Criteria.where("visibility").is(Visibility.PUBLIC),
+                Criteria.where("ownerId").is(userId)
+        ));
+        return mongoTemplate.count(query, FileMetadata.class, COLLECTION_NAME);
+    }
+
     public long count() {
         return mongoTemplate.count(new Query(), FileMetadata.class, COLLECTION_NAME);
     }

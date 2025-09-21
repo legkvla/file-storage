@@ -28,15 +28,20 @@ public class FileMetadata {
 
     private Set<String> tags;
 
+    @NotBlank
+    @Indexed
+    private String ownerId;
+
     private ObjectId gridFsId;
 
     public FileMetadata() {}
 
-    public FileMetadata(String filename, Long size, Visibility visibility, Set<String> tags) {
+    public FileMetadata(String filename, Long size, Visibility visibility, Set<String> tags, String ownerId) {
         this.filename = filename;
         this.size = size;
         this.visibility = visibility;
         this.tags = tags;
+        this.ownerId = ownerId;
     }
 
     public String getId() { return id; }
@@ -53,6 +58,9 @@ public class FileMetadata {
 
     public Set<String> getTags() { return tags; }
     public void setTags(Set<String> tags) { this.tags = tags; }
+
+    public String getOwnerId() { return ownerId; }
+    public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
 
     public ObjectId getGridFsId() { return gridFsId; }
     public void setGridFsId(ObjectId gridFsId) { this.gridFsId = gridFsId; }

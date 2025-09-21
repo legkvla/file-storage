@@ -49,7 +49,7 @@ public class FileController {
     private CurrentUserService currentUserService;
 
     /**
-     * Upload a file using raw InputStream (for very large files or custom clients)
+     * Upload a file using raw InputStream
      */
     @Operation(summary = "Upload file", description = "Upload a file using raw InputStream")
     @ApiResponses(value = {
@@ -59,7 +59,7 @@ public class FileController {
         @ApiResponse(responseCode = "401", description = "Unauthorized - Invalid or missing JWT token")
     })
     @SecurityRequirement(name = "Bearer Authentication")
-    @PostMapping("/upload-stream")
+    @PostMapping("/upload")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<FileMetadata> uploadFileStream(
             @RequestParam("filename") String filename,
@@ -68,12 +68,15 @@ public class FileController {
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
         
-        // Get current user identity
+        // Get current user ID
+        String currentUserId = currentUserService.getCurrentUserId()
+                .orElseThrow(() -> new SecurityException("User not authenticated"));
+        
         String currentUserIdentity = currentUserService.getCurrentUserIdentity()
                 .orElse("unknown");
         
-        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}, user={}", 
-                   filename, contentType, visibility, tags, currentUserIdentity);
+        logger.info("File upload request: filename={}, contentType={}, visibility={}, tags={}, user={}, userId={}", 
+                   filename, contentType, visibility, tags, currentUserIdentity, currentUserId);
         
         try {
             // Store file in GridFS using streaming
@@ -84,6 +87,7 @@ public class FileController {
             metadata.setFilename(filename);
             metadata.setVisibility(visibility);
             metadata.setTags(tags);
+            metadata.setOwnerId(currentUserId);
             metadata.setGridFsId(gridFsId);
 
             // Save metadata
@@ -99,17 +103,19 @@ public class FileController {
         }
     }
 
-    /**
-     * Download a file by metadata ID
-     */
     @GetMapping("/{id}/download")
     public ResponseEntity<InputStreamResource> downloadFile(@PathVariable String id) {
         logger.info("File download request: metadataId={}", id);
         
-        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findById(id);
+        // Get current user ID
+        String currentUserId = currentUserService.getCurrentUserId()
+                .orElseThrow(() -> new SecurityException("User not authenticated"));
+        
+        // Find file with ownership check
+        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
         
         if (metadataOpt.isEmpty()) {
-            logger.warn("File metadata not found: metadataId={}", id);
+            logger.warn("File metadata not found or access denied: metadataId={}, userId={}", id, currentUserId);
             return ResponseEntity.notFound().build();
         }
 
@@ -141,79 +147,105 @@ public class FileController {
         }
     }
 
-    /**
-     * Get file metadata by ID
-     */
     @GetMapping("/{id}")
     public ResponseEntity<FileMetadata> getFileMetadata(@PathVariable String id) {
-        Optional<FileMetadata> metadata = fileMetadataRepository.findById(id);
+        // Get current user ID
+        String currentUserId = currentUserService.getCurrentUserId()
+                .orElseThrow(() -> new SecurityException("User not authenticated"));
+        
+        // Find file with ownership check
+        Optional<FileMetadata> metadata = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
         return metadata.map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * List all files with optional filtering (optimized with MongoDB queries)
-     */
     @GetMapping
     public List<FileMetadata> listFiles(
             @RequestParam(value = "visibility", required = false) Visibility visibility,
             @RequestParam(value = "tag", required = false) String tag) {
-        
-        // Use optimized MongoDB queries instead of Java filtering
+
+        String currentUserId = currentUserService.getCurrentUserId()
+                .orElseThrow(() -> new SecurityException("User not authenticated"));
+
         if (visibility != null && tag != null) {
-            return fileMetadataRepository.findByVisibilityAndTagContainingIgnoreCase(visibility, tag);
+            return fileMetadataRepository.findByVisibilityAndTagVisibleToUser(visibility, tag, currentUserId);
         } else if (visibility != null) {
-            return fileMetadataRepository.findByVisibility(visibility);
+            return fileMetadataRepository.findByVisibilityVisibleToUser(visibility, currentUserId);
         } else if (tag != null) {
-            return fileMetadataRepository.findByTagContainingIgnoreCase(tag);
+            return fileMetadataRepository.findByTagVisibleToUser(tag, currentUserId);
         } else {
-            return fileMetadataRepository.findAll();
+            return fileMetadataRepository.findAllVisibleToUser(currentUserId);
         }
     }
 
-    /**
-     * Delete a file and its metadata
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFile(@PathVariable String id) {
-        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findById(id);
+        // Get current user ID
+        String currentUserId = currentUserService.getCurrentUserId()
+                .orElseThrow(() -> new SecurityException("User not authenticated"));
+        
+        // Find file with ownership check
+        Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
         
         if (metadataOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         FileMetadata metadata = metadataOpt.get();
+
+        if (!currentUserId.equals(metadata.getOwnerId())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         
         try {
             // Delete from GridFS
             gridFsService.deleteFile(metadata.getGridFsId());
             
-            // Delete metadata
-            fileMetadataRepository.deleteById(id);
+            // Delete metadata (with ownership check)
+            boolean deleted = fileMetadataRepository.deleteByIdAndOwner(id, currentUserId);
             
-            return ResponseEntity.noContent().build();
+            if (deleted) {
+                return ResponseEntity.noContent().build();
+            } else {
+                logger.error("Failed to delete file metadata: metadataId={}, userId={}", id, currentUserId);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
         } catch (Exception e) {
+            logger.error("Error deleting file: metadataId={}, userId={}", id, currentUserId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
     /**
-     * Update file metadata
+     * Update file metadata (only by owner)
      */
     @PutMapping("/{id}")
     public ResponseEntity<FileMetadata> updateFileMetadata(
             @PathVariable String id,
             @RequestBody FileMetadata updatedMetadata) {
         
-        Optional<FileMetadata> existingOpt = fileMetadataRepository.findById(id);
+        // Get current user ID
+        String currentUserId = currentUserService.getCurrentUserId()
+                .orElseThrow(() -> new SecurityException("User not authenticated"));
+        
+        // Find file with ownership check
+        Optional<FileMetadata> existingOpt = fileMetadataRepository.findByIdVisibleToUser(id, currentUserId);
         
         if (existingOpt.isEmpty()) {
+            logger.warn("File not found or access denied for update: metadataId={}, userId={}", id, currentUserId);
             return ResponseEntity.notFound().build();
         }
 
         FileMetadata existing = existingOpt.get();
         
-        // Update only allowed fields
+        // Double-check ownership (user can only update their own files)
+        if (!currentUserId.equals(existing.getOwnerId())) {
+            logger.warn("User attempted to update file they don't own: metadataId={}, userId={}, ownerId={}", 
+                       id, currentUserId, existing.getOwnerId());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        
+        // Update only allowed fields (ownerId cannot be changed)
         if (updatedMetadata.getVisibility() != null) {
             existing.setVisibility(updatedMetadata.getVisibility());
         }
@@ -222,6 +254,8 @@ public class FileController {
         }
 
         FileMetadata saved = fileMetadataRepository.save(existing);
+        logger.info("File metadata updated: metadataId={}, filename={}, userId={}", 
+                   id, saved.getFilename(), currentUserId);
         return ResponseEntity.ok(saved);
     }
 
