@@ -42,7 +42,7 @@ public class LargeFileIntegrationTest {
 
 	@Test
 	void upload2Gb() {
-		final String userId = "itest-user";
+		final String userId = "test-user";
 		final String filename = "two-gig.bin";
 		final String contentType = "application/octet-stream";
 		final long sizeBytes = 2L * 1024 * 1024 * 1024; // 2GB
