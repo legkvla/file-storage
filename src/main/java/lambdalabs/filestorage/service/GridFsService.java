@@ -32,9 +32,7 @@ public class GridFsService {
     public ObjectId storeFileStreaming(InputStream inputStream, String filename, String contentType) throws IOException {
         logger.debug("Storing file in GridFS: filename={}, contentType={}", filename, contentType);
         try {
-            ObjectId objectId = gridFsOperations.store(inputStream, filename, contentType);
-            logger.info("Successfully stored file in GridFS: filename={}, objectId={}", filename, objectId);
-            return objectId;
+            return gridFsOperations.store(inputStream, filename, contentType);
         } catch (Exception e) {
             logger.error("Failed to store file in GridFS: filename={}, contentType={}", filename, contentType, e);
             if (e instanceof IOException) {
@@ -45,14 +43,9 @@ public class GridFsService {
         }
     }
 
-    /**
-     * Retrieve a file from GridFS by ObjectId
-     */
-    public GridFsResource getFile(ObjectId objectId) {
-        logger.debug("Retrieving file from GridFS: objectId={}", objectId);
+    public GridFsResource getResource(ObjectId objectId) {
         GridFSFile gridFSFile = gridFsOperations.findOne(Query.query(Criteria.where("_id").is(objectId)));
         if (gridFSFile != null) {
-            logger.debug("File found in GridFS: objectId={}, filename={}", objectId, gridFSFile.getFilename());
             return gridFsOperations.getResource(gridFSFile);
         } else {
             logger.warn("File not found in GridFS: objectId={}", objectId);
@@ -60,16 +53,6 @@ public class GridFsService {
         }
     }
 
-    /**
-     * Retrieve a file from GridFS by filename
-     */
-    public GridFsResource getFile(String filename) {
-        return gridFsOperations.getResource(filename);
-    }
-
-    /**
-     * Delete a file from GridFS by ObjectId
-     */
     public void deleteFile(ObjectId objectId) {
         logger.debug("Deleting file from GridFS: objectId={}", objectId);
         try {
@@ -82,36 +65,13 @@ public class GridFsService {
     }
 
     /**
-     * Delete a file from GridFS by filename
-     */
-    public void deleteFile(String filename) {
-        gridFsOperations.delete(Query.query(Criteria.where("filename").is(filename)));
-    }
-
-    /**
-     * Check if a file exists in GridFS by ObjectId
-     */
-    public boolean fileExists(ObjectId objectId) {
-        GridFSFile gridFSFile = gridFsOperations.findOne(Query.query(Criteria.where("_id").is(objectId)));
-        return gridFSFile != null;
-    }
-
-    /**
-     * Check if a file exists in GridFS by filename
-     */
-    public boolean fileExists(String filename) {
-        GridFSFile gridFSFile = gridFsOperations.findOne(Query.query(Criteria.where("filename").is(filename)));
-        return gridFSFile != null;
-    }
-
-    /**
      * Calculate MD5 hash from a GridFS file by ObjectId
      * This method streams the file content without loading it entirely into memory
      */
     public String calculateMD5FromGridFS(ObjectId objectId) throws IOException {
         logger.debug("Calculating MD5 hash for GridFS file: objectId={}", objectId);
         
-        GridFsResource resource = getFile(objectId);
+        GridFsResource resource = getResource(objectId);
         if (resource == null) {
             throw new IOException("File not found in GridFS: " + objectId);
         }

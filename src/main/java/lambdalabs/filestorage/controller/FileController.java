@@ -99,12 +99,15 @@ public class FileController {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
             }
 
+            GridFsResource gridResource = gridFsService.getResource(gridFsId);
+
             FileMetadata metadata = new FileMetadata();
             metadata.setFilename(filename);
             metadata.setVisibility(visibility);
             metadata.setTags(tags);
             metadata.setOwnerId(userId);
             metadata.setGridFsId(gridFsId);
+            metadata.setSize(gridResource.getGridFSFile().getLength());
             metadata.setMd5(md5Hash);
             metadata.setContentType(effectiveContentType);
 
@@ -134,7 +137,7 @@ public class FileController {
         FileMetadata metadata = metadataOpt.get();
         logger.debug("Found metadata: filename={}, gridFsId={}", metadata.getFilename(), metadata.getGridFsId());
         
-        GridFsResource resource = gridFsService.getFile(metadata.getGridFsId());
+        GridFsResource resource = gridFsService.getResource(metadata.getGridFsId());
 
         if (resource == null) {
             logger.warn("File not found in GridFS: metadataId={}, gridFsId={}", id, metadata.getGridFsId());

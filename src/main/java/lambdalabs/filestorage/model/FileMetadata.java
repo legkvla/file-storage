@@ -1,11 +1,7 @@
 package lambdalabs.filestorage.model;
 
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Set;
@@ -15,20 +11,17 @@ public class FileMetadata {
     @Id
     private String id;
 
-    @NotBlank
-    @Indexed
     private String filename;
 
-    @NotNull
     private Visibility visibility;
 
     private Set<String> tags;
 
-    @NotBlank
-    @Indexed
     private String ownerId;
 
     private ObjectId gridFsId;
+
+    private long size;
 
     private String md5;
 
@@ -51,6 +44,14 @@ public class FileMetadata {
 
     public ObjectId getGridFsId() { return gridFsId; }
     public void setGridFsId(ObjectId gridFsId) { this.gridFsId = gridFsId; }
+
+    public long getSize() {
+        return size;
+    }
+
+    public void setSize(long size) {
+        this.size = size;
+    }
 
     public String getMd5() { return md5; }
     public void setMd5(String md5) { this.md5 = md5; }
