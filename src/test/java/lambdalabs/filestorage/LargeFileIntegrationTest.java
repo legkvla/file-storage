@@ -1,10 +1,6 @@
 package lambdalabs.filestorage;
 
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -17,10 +13,7 @@ import org.springframework.web.client.RestTemplate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.security.DigestInputStream;
-import java.security.MessageDigest;
 import java.time.Duration;
-import java.util.HexFormat;
 import java.util.Map;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
@@ -31,17 +24,15 @@ public class LargeFileIntegrationTest {
 
 	@BeforeAll
 	static void setup(@Autowired RestTemplateBuilder builder) {
-		// Skip test if local MongoDB isnt available
 		boolean mongoAvailable = isMongoRunning();
 		Assumptions.assumeTrue(mongoAvailable, "MongoDB must be running at mongodb://localhost:27017 for this integration test");
 
-		restTemplate = builder
-			.requestFactory(factory -> {
-				var simple = new org.springframework.http.client.SimpleClientHttpRequestFactory();
-				simple.setConnectTimeout((int) Duration.ofSeconds(30).toMillis());
-				simple.setReadTimeout((int) Duration.ofHours(6).toMillis());
-				return simple;
-			})
+		restTemplate = builder.requestFactoryBuilder(factory -> {
+					var simple = new org.springframework.http.client.SimpleClientHttpRequestFactory();
+					simple.setConnectTimeout((int) Duration.ofSeconds(30).toMillis());
+					simple.setReadTimeout((int) Duration.ofHours(6).toMillis());
+					return simple;
+				})
 			.build();
 	}
 
@@ -50,7 +41,7 @@ public class LargeFileIntegrationTest {
 	}
 
 	@Test
-	void upload2GbAndDownload_streaming_noBuffering() throws Exception {
+	void upload2Gb() {
 		final String userId = "itest-user";
 		final String filename = "two-gig.bin";
 		final String contentType = "application/octet-stream";
@@ -74,7 +65,8 @@ public class LargeFileIntegrationTest {
 
 		RequestEntity<InputStreamResource> uploadReq = new RequestEntity<>(bodyResource, headers, HttpMethod.POST, uploadUri);
 
-		ResponseEntity<Map<String,Object>> uploadResp = restTemplate.exchange(uploadReq, new ParameterizedTypeReference<Map<String, Object>>() {});
+		ResponseEntity<Map<String,Object>> uploadResp = restTemplate.exchange(uploadReq, new ParameterizedTypeReference<>() {
+		});
 		Assertions.assertEquals(HttpStatus.OK, uploadResp.getStatusCode());
 		Map<String,Object> metadata = uploadResp.getBody();
 		Assertions.assertNotNull(metadata);
@@ -87,7 +79,7 @@ public class LargeFileIntegrationTest {
 	}
 
 	private static boolean isMongoRunning() {
-		try (java.net.Socket s = new java.net.Socket("localhost", 27017)) {
+		try (java.net.Socket ignored = new java.net.Socket("localhost", 27017)) {
 			return true;
 		} catch (IOException e) {
 			return false;
