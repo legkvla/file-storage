@@ -76,6 +76,17 @@ public class LargeFileIntegrationTest {
 		Assertions.assertNotNull(sizeValue);
 		long storedSize = Long.parseLong(String.valueOf(sizeValue));
 		Assertions.assertEquals(sizeBytes, storedSize);
+
+		// Cleanup: delete the uploaded file and verify it's gone
+		HttpHeaders authHeaders = new HttpHeaders();
+		authHeaders.set("User-Id", userId);
+		RequestEntity<Void> deleteReq = new RequestEntity<>(authHeaders, HttpMethod.DELETE, URI.create("http://localhost:8080/api/files/" + id));
+		ResponseEntity<Void> deleteResp = restTemplate.exchange(deleteReq, Void.class);
+		Assertions.assertEquals(HttpStatus.NO_CONTENT, deleteResp.getStatusCode());
+
+		RequestEntity<Void> getMetaReq = new RequestEntity<>(authHeaders, HttpMethod.GET, URI.create("http://localhost:8080/api/files/" + id));
+		ResponseEntity<Void> getMetaResp = restTemplate.exchange(getMetaReq, Void.class);
+		Assertions.assertEquals(HttpStatus.NOT_FOUND, getMetaResp.getStatusCode());
 	}
 
 	private static boolean isMongoRunning() {
