@@ -133,4 +133,9 @@ public class FileMetadataRepository {
         Query query = new Query(Criteria.where("filename").is(filename).and("ownerId").is(ownerId));
         return mongoTemplate.exists(query, FileMetadata.class, COLLECTION_NAME);
     }
+
+    public boolean existsByMd5AndOwnerId(String md5, String ownerId) {
+        Query query = new Query(Criteria.where("md5").is(md5).and("ownerId").is(ownerId));
+        return mongoTemplate.exists(query, FileMetadata.class, COLLECTION_NAME);
+    }
 }

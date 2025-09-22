@@ -44,6 +44,7 @@ public class FileControllerTest {
         ObjectId mockObjectId = new ObjectId();
 
         when(fileMetadataRepository.existsByFilenameAndOwnerId("test.txt", "test-user-id")).thenReturn(false);
+        when(fileMetadataRepository.existsByMd5AndOwnerId("d41d8cd98f00b204e9800998ecf8427e", "test-user-id")).thenReturn(false);
         when(gridFsService.storeFileStreaming(any(), any(), any())).thenReturn(mockObjectId);
         when(gridFsService.calculateMD5FromGridFS(mockObjectId)).thenReturn("d41d8cd98f00b204e9800998ecf8427e");
         when(fileMetadataRepository.save(any(FileMetadata.class))).thenReturn(mockMetadata);
@@ -58,6 +59,41 @@ public class FileControllerTest {
                 .andExpect(jsonPath("$.filename").value("test.txt"))
                 .andExpect(jsonPath("$.visibility").value("PUBLIC"))
                 .andExpect(jsonPath("$.md5").value("d41d8cd98f00b204e9800998ecf8427e"));
+    }
+
+    @Test
+    public void testUploadFileStreamDuplicateFilename() throws Exception {
+        when(fileMetadataRepository.existsByFilenameAndOwnerId("test.txt", "test-user-id")).thenReturn(true);
+
+        mockMvc.perform(post("/api/files/upload")
+                .header("User-Id", "test-user-id")
+                .param("filename", "test.txt")
+                .param("contentType", "text/plain")
+                .param("visibility", "PUBLIC")
+                .content("Hello World"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("Filename already exists"))
+                .andExpect(jsonPath("$.message").value("A file with this filename already exists for your account"));
+    }
+
+    @Test
+    public void testUploadFileStreamDuplicateMd5() throws Exception {
+        ObjectId mockObjectId = new ObjectId();
+
+        when(fileMetadataRepository.existsByFilenameAndOwnerId("test.txt", "test-user-id")).thenReturn(false);
+        when(fileMetadataRepository.existsByMd5AndOwnerId("d41d8cd98f00b204e9800998ecf8427e", "test-user-id")).thenReturn(true);
+        when(gridFsService.storeFileStreaming(any(), any(), any())).thenReturn(mockObjectId);
+        when(gridFsService.calculateMD5FromGridFS(mockObjectId)).thenReturn("d41d8cd98f00b204e9800998ecf8427e");
+
+        mockMvc.perform(post("/api/files/upload")
+                .header("User-Id", "test-user-id")
+                .param("filename", "test.txt")
+                .param("contentType", "text/plain")
+                .param("visibility", "PUBLIC")
+                .content("Hello World"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("File already exists"))
+                .andExpect(jsonPath("$.message").value("A file with the same content already exists in your account"));
     }
 
     @Test

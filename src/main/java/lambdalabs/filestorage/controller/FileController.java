@@ -55,7 +55,7 @@ public class FileController {
                 content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
         @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
         @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
-        @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
+        @ApiResponse(responseCode = "409", description = "Conflict - File with this filename or content already exists for the user")
     })
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.CREATED)
@@ -79,6 +79,17 @@ public class FileController {
             ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, contentType);
 
             String md5Hash = gridFsService.calculateMD5FromGridFS(gridFsId);
+
+            // Check if MD5 hash already exists for this user
+            if (fileMetadataRepository.existsByMd5AndOwnerId(md5Hash, userId)) {
+                // Clean up the stored file since we're rejecting the upload
+                gridFsService.deleteFile(gridFsId);
+                
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "File already exists");
+                error.put("message", "A file with the same content already exists in your account");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+            }
 
             FileMetadata metadata = new FileMetadata();
             metadata.setFilename(filename);
