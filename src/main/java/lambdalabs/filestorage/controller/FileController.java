@@ -21,6 +21,7 @@ import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
@@ -46,9 +47,7 @@ public class FileController {
     @Autowired
     private GridFsService gridFsService;
 
-    /**
-     * Upload a file using raw InputStream
-     */
+
     @Operation(summary = "Upload file", description = "Upload a file using raw InputStream")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "File uploaded successfully",
@@ -62,12 +61,14 @@ public class FileController {
     public ResponseEntity<?> uploadFileStream(
             @RequestHeader("User-Id") String userId,
             @RequestParam("filename") String filename,
-            @RequestParam("contentType") String contentType,
+            //we have contentType explicitly here because we would like user to specify it and 
+            // it is not convinient with header approach because we want to distinguish 
+            // when user specified contentType or not
+            @RequestParam(value = "contentType", required = false) String contentType,
             @RequestParam(value = "visibility", defaultValue = "PRIVATE") Visibility visibility,
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
         
-        // Check if filename already exists for this user
         if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, userId)) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Filename already exists");
@@ -76,7 +77,15 @@ public class FileController {
         }
         
         try {
-            ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, contentType);
+            // Derive contentType from filename if not provided
+            String effectiveContentType = contentType;
+            if (effectiveContentType == null || effectiveContentType.isBlank()) {
+                effectiveContentType = MediaTypeFactory.getMediaType(filename)
+                        .map(MediaType::toString)
+                        .orElse("application/octet-stream");
+            }
+
+            ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, effectiveContentType);
 
             String md5Hash = gridFsService.calculateMD5FromGridFS(gridFsId);
 
@@ -98,6 +107,7 @@ public class FileController {
             metadata.setOwnerId(userId);
             metadata.setGridFsId(gridFsId);
             metadata.setMd5(md5Hash);
+            metadata.setContentType(effectiveContentType);
 
             FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
 

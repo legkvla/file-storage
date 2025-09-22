@@ -20,10 +20,6 @@ public class FileMetadata {
     private String filename;
 
     @NotNull
-    @Min(0)
-    private Long size;
-
-    @NotNull
     private Visibility visibility;
 
     private Set<String> tags;
@@ -36,15 +32,7 @@ public class FileMetadata {
 
     private String md5;
 
-    public FileMetadata() {}
-
-    public FileMetadata(String filename, Long size, Visibility visibility, Set<String> tags, String ownerId) {
-        this.filename = filename;
-        this.size = size;
-        this.visibility = visibility;
-        this.tags = tags;
-        this.ownerId = ownerId;
-    }
+    private String contentType;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -66,4 +54,7 @@ public class FileMetadata {
 
     public String getMd5() { return md5; }
     public void setMd5(String md5) { this.md5 = md5; }
+
+    public String getContentType() { return contentType; }
+    public void setContentType(String contentType) { this.contentType = contentType; }
 }
