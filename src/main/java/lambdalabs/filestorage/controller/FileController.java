@@ -89,7 +89,6 @@ public class FileController {
 
             String md5Hash = gridFsService.calculateMD5FromGridFS(gridFsId);
 
-            // Check if MD5 hash already exists for this user
             if (fileMetadataRepository.existsByMd5AndOwnerId(md5Hash, userId)) {
                 // Clean up the stored file since we're rejecting the upload
                 gridFsService.deleteFile(gridFsId);
