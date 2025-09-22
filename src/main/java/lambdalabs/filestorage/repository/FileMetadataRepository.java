@@ -1,5 +1,6 @@
 package lambdalabs.filestorage.repository;
 
+import jakarta.validation.constraints.NotNull;
 import lambdalabs.filestorage.model.FileMetadata;
 import lambdalabs.filestorage.model.Visibility;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,9 +74,10 @@ public class FileMetadataRepository {
     }
 
 
-    public List<FileMetadata> findByTagVisibleToUser(String tag, String userId, int skip, int limit, String sortField, boolean desc) {
+    public List<FileMetadata> findByTagVisibleToUser(
+            @NotNull String tag, String userId, int skip, int limit, String sortField, boolean desc) {
         return getFileMetadataList(skip, limit, sortField, desc,
-                Criteria.where("tags").in(tag).orOperator(
+                Criteria.where("tags").in(tag.toLowerCase()).orOperator(
                     Criteria.where("visibility").is(Visibility.PUBLIC),
                     Criteria.where("ownerId").is(userId)
                 )
@@ -83,10 +85,12 @@ public class FileMetadataRepository {
     }
 
 
-    public List<FileMetadata> findByVisibilityAndTagVisibleToUser(Visibility visibility, String tag, String userId, int skip, int limit, String sortField, boolean desc) {
+    public List<FileMetadata> findByVisibilityAndTagVisibleToUser(
+            Visibility visibility, @NotNull String tag, String userId, int skip, int limit, String sortField,
+            boolean desc) {
         return getFileMetadataList(skip, limit, sortField, desc,
                 Criteria.where("visibility").is(visibility)
-                        .and("tags").in(tag)
+                        .and("tags").in(tag.toLowerCase())
                         .orOperator(
                                 Criteria.where("visibility").is(Visibility.PUBLIC),
                                 Criteria.where("ownerId").is(userId)

@@ -4,7 +4,9 @@ import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Document(collection = "file_metadata")
 public class FileMetadata {
@@ -37,7 +39,9 @@ public class FileMetadata {
     public void setVisibility(Visibility visibility) { this.visibility = visibility; }
 
     public Set<String> getTags() { return tags; }
-    public void setTags(Set<String> tags) { this.tags = tags; }
+    public void setTags(Set<String> tags) {
+        this.tags = tags.stream().filter(Objects::nonNull).map(String::toLowerCase).collect(Collectors.toSet());
+    }
 
     public String getOwnerId() { return ownerId; }
     public void setOwnerId(String ownerId) { this.ownerId = ownerId; }
