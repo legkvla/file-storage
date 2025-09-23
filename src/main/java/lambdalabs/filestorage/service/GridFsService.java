@@ -35,11 +35,7 @@ public class GridFsService {
             return gridFsOperations.store(inputStream, filename, contentType);
         } catch (Exception e) {
             logger.error("Failed to store file in GridFS: filename={}, contentType={}", filename, contentType, e);
-            if (e instanceof IOException) {
-                throw (IOException) e;
-            } else {
-                throw new IOException("Failed to store file in GridFS", e);
-            }
+            throw new IOException("Failed to store file in GridFS", e);
         }
     }
 
