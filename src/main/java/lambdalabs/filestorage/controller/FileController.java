@@ -77,9 +77,7 @@ public class FileController {
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
 
-        final Object lock = locks.computeIfAbsent(userId, u -> new Object());
-
-        synchronized (lock) {
+        synchronized (locks.computeIfAbsent(userId, u -> new Object())) {
             if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, userId)) {
                 Map<String, String> error = new HashMap<>();
                 error.put("error", "Filename already exists");
