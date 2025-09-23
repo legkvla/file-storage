@@ -40,7 +40,9 @@ public class FileMetadata {
 
     public Set<String> getTags() { return tags; }
     public void setTags(Set<String> tags) {
-        this.tags = tags.stream().filter(Objects::nonNull).map(String::toLowerCase).collect(Collectors.toSet());
+        if (tags != null) {
+            this.tags = tags.stream().filter(Objects::nonNull).map(String::toLowerCase).collect(Collectors.toSet());
+        }
     }
 
     public String getOwnerId() { return ownerId; }
