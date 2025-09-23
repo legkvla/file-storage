@@ -134,9 +134,7 @@ public class FileController {
     public ResponseEntity<InputStreamResource> downloadFile(
             @RequestHeader("User-Id") String userId,
             @PathVariable String id) {
-        logger.info("File download request: metadataId={}, userId={}", id, userId);
 
-        // Find file with ownership check
         Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
 
         if (metadataOpt.isEmpty()) {
@@ -145,7 +143,6 @@ public class FileController {
         }
 
         FileMetadata metadata = metadataOpt.get();
-        logger.debug("Found metadata: filename={}, gridFsId={}", metadata.getFilename(), metadata.getGridFsId());
 
         GridFsResource resource = gridFsService.getResource(metadata.getGridFsId());
 
@@ -159,9 +156,6 @@ public class FileController {
             headers.setContentType(MediaType.parseMediaType(resource.getContentType()));
             headers.setContentDispositionFormData("attachment", metadata.getFilename());
             headers.setContentLength(resource.contentLength());
-
-            logger.info("File download successful: filename={}, contentType={}, size={}",
-                    metadata.getFilename(), resource.getContentType(), resource.contentLength());
 
             return ResponseEntity.ok()
                     .headers(headers)
@@ -304,10 +298,7 @@ public class FileController {
             existing.setTags(updateRequest.getTags());
         }
 
-        FileMetadata saved = fileMetadataRepository.save(existing);
-        logger.info("File metadata updated: metadataId={}, filename={}, userId={}",
-                id, saved.getFilename(), userId);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(fileMetadataRepository.save(existing));
     }
 
 }

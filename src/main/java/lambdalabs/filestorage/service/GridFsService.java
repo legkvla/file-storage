@@ -50,7 +50,6 @@ public class GridFsService {
     }
 
     public void deleteFile(ObjectId objectId) {
-        logger.debug("Deleting file from GridFS: objectId={}", objectId);
         try {
             gridFsOperations.delete(Query.query(Criteria.where("_id").is(objectId)));
             logger.info("Successfully deleted file from GridFS: objectId={}", objectId);
@@ -65,7 +64,6 @@ public class GridFsService {
      * This method streams the file content without loading it entirely into memory
      */
     public String calculateMD5FromGridFS(ObjectId objectId) throws IOException {
-        logger.debug("Calculating MD5 hash for GridFS file: objectId={}", objectId);
         
         GridFsResource resource = getResource(objectId);
         if (resource == null) {
@@ -82,10 +80,8 @@ public class GridFsService {
             }
             
             byte[] digest = md5.digest();
-            String md5Hash = HexFormat.of().formatHex(digest);
-            
-            logger.info("MD5 hash calculated for GridFS file: objectId={}, md5={}", objectId, md5Hash);
-            return md5Hash;
+
+            return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             logger.error("MD5 algorithm not available", e);
             throw new IOException("MD5 algorithm not available", e);
