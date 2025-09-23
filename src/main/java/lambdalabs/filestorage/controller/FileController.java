@@ -205,7 +205,6 @@ public class FileController {
             limit = 50; // Default limit with max cap
         }
 
-        // Convert enum to string for repository
         String sortField = sortBy.name().toLowerCase();
 
         if (visibility != null && tag != null) {

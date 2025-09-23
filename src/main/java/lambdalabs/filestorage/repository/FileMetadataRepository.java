@@ -39,19 +39,13 @@ public class FileMetadataRepository {
         return mongoTemplate.find(query, FileMetadata.class, COLLECTION_NAME);
     }
 
-    public Optional<FileMetadata> findById(String id) {
-        FileMetadata fileMetadata = mongoTemplate.findById(id, FileMetadata.class, COLLECTION_NAME);
-        return Optional.ofNullable(fileMetadata);
-    }
-
     public Optional<FileMetadata> findByIdVisibleToUser(String id, String userId) {
         Query query = new Query(Criteria.where("id").is(id).orOperator(
                     Criteria.where("visibility").is(Visibility.PUBLIC),
                     Criteria.where("ownerId").is(userId)
                 )
         );
-        FileMetadata fileMetadata = mongoTemplate.findOne(query, FileMetadata.class, COLLECTION_NAME);
-        return Optional.ofNullable(fileMetadata);
+        return Optional.ofNullable(mongoTemplate.findOne(query, FileMetadata.class, COLLECTION_NAME));
     }
 
 
@@ -103,23 +97,6 @@ public class FileMetadataRepository {
                 new Query(Criteria.where("id").is(id).and("ownerId").is(ownerId)),
                 FileMetadata.class, COLLECTION_NAME).
                 getDeletedCount() > 0;
-    }
-
-    public void deleteById(String id) {
-        mongoTemplate.remove(new Query(Criteria.where("id").is(id)), FileMetadata.class, COLLECTION_NAME);
-    }
-
-    public boolean existsById(String id) {
-        Query query = new Query(Criteria.where("id").is(id));
-        return mongoTemplate.exists(query, FileMetadata.class, COLLECTION_NAME);
-    }
-
-    public long countVisibleToUser(String userId) {
-        Query query = new Query(new Criteria().orOperator(
-                Criteria.where("visibility").is(Visibility.PUBLIC),
-                Criteria.where("ownerId").is(userId)
-        ));
-        return mongoTemplate.count(query, FileMetadata.class, COLLECTION_NAME);
     }
 
     public long count() {
