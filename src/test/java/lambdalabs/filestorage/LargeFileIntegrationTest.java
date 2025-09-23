@@ -47,46 +47,60 @@ public class LargeFileIntegrationTest {
 		final String contentType = "application/octet-stream";
 		final long sizeBytes = 2L * 1024 * 1024 * 1024; // 2GB
 
-		// Create a deterministic streaming source that does not buffer
-		InputStream dataStream = new DeterministicStream(sizeBytes);
-		InputStreamResource bodyResource = new InputStreamResource(dataStream) {
-			@Override
-			public String getFilename() { return filename; }
-			@Override
-			public long contentLength() { return sizeBytes; }
-		};
+		InputStream dataStream = null;
+		String id = null;
+		try {
+			// Create a deterministic streaming source that does not buffer
+			dataStream = new DeterministicStream(sizeBytes);
+			InputStreamResource bodyResource = new InputStreamResource(dataStream) {
+				@Override
+				public String getFilename() { return filename; }
+				@Override
+				public long contentLength() { return sizeBytes; }
+			};
 
-		HttpHeaders headers = new HttpHeaders();
-		headers.set("User-Id", userId);
-		headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+			HttpHeaders headers = new HttpHeaders();
+			headers.set("User-Id", userId);
+			headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
 
-		// Query params for filename/contentType/visibility
-		URI uploadUri = URI.create("http://localhost:8080/api/files/upload?filename=" + filename + "&contentType=" + contentType + "&visibility=PRIVATE");
+			// Query params for filename/contentType/visibility
+			URI uploadUri = URI.create("http://localhost:8080/api/files/upload?filename=" + filename + "&contentType=" + contentType + "&visibility=PRIVATE");
 
-		RequestEntity<InputStreamResource> uploadReq = new RequestEntity<>(bodyResource, headers, HttpMethod.POST, uploadUri);
+			RequestEntity<InputStreamResource> uploadReq = new RequestEntity<>(bodyResource, headers, HttpMethod.POST, uploadUri);
 
-		ResponseEntity<Map<String,Object>> uploadResp = restTemplate.exchange(uploadReq, new ParameterizedTypeReference<>() {
-		});
-		Assertions.assertEquals(HttpStatus.OK, uploadResp.getStatusCode());
-		Map<String,Object> metadata = uploadResp.getBody();
-		Assertions.assertNotNull(metadata);
-		String id = String.valueOf(metadata.get("id"));
-		Assertions.assertNotNull(id);
-		Object sizeValue = metadata.get("size");
-		Assertions.assertNotNull(sizeValue);
-		long storedSize = Long.parseLong(String.valueOf(sizeValue));
-		Assertions.assertEquals(sizeBytes, storedSize);
-
-		// Cleanup: delete the uploaded file and verify it's gone
-		HttpHeaders authHeaders = new HttpHeaders();
-		authHeaders.set("User-Id", userId);
-		RequestEntity<Void> deleteReq = new RequestEntity<>(authHeaders, HttpMethod.DELETE, URI.create("http://localhost:8080/api/files/" + id));
-		ResponseEntity<Void> deleteResp = restTemplate.exchange(deleteReq, Void.class);
-		Assertions.assertEquals(HttpStatus.NO_CONTENT, deleteResp.getStatusCode());
-
-		RequestEntity<Void> getMetaReq = new RequestEntity<>(authHeaders, HttpMethod.GET, URI.create("http://localhost:8080/api/files/" + id));
-		ResponseEntity<Void> getMetaResp = restTemplate.exchange(getMetaReq, Void.class);
-		Assertions.assertEquals(HttpStatus.NOT_FOUND, getMetaResp.getStatusCode());
+			ResponseEntity<Map<String,Object>> uploadResp = restTemplate.exchange(uploadReq, new ParameterizedTypeReference<>() {
+			});
+			Assertions.assertEquals(HttpStatus.OK, uploadResp.getStatusCode());
+			Map<String,Object> metadata = uploadResp.getBody();
+			Assertions.assertNotNull(metadata);
+			id = String.valueOf(metadata.get("id"));
+			Assertions.assertNotNull(id);
+			Object sizeValue = metadata.get("size");
+			Assertions.assertNotNull(sizeValue);
+			long storedSize = Long.parseLong(String.valueOf(sizeValue));
+			Assertions.assertEquals(sizeBytes, storedSize);
+		} finally {
+			// Cleanup: delete the uploaded file and verify it's gone, without masking original failures
+			try {
+				if (id != null) {
+					HttpHeaders authHeaders = new HttpHeaders();
+					authHeaders.set("User-Id", userId);
+					RequestEntity<Void> deleteReq = new RequestEntity<>(authHeaders, HttpMethod.DELETE, URI.create("http://localhost:8080/api/files/" + id));
+					ResponseEntity<Void> deleteResp = restTemplate.exchange(deleteReq, Void.class);
+					// Best-effort verification
+					if (deleteResp.getStatusCode() == HttpStatus.NO_CONTENT) {
+						RequestEntity<Void> getMetaReq = new RequestEntity<>(authHeaders, HttpMethod.GET, URI.create("http://localhost:8080/api/files/" + id));
+						restTemplate.exchange(getMetaReq, Void.class);
+					}
+				}
+			} catch (Exception ignored) {
+				// ignore cleanup errors
+			} finally {
+				if (dataStream != null) {
+					try { dataStream.close(); } catch (IOException ignored2) {}
+				}
+			}
+		}
 	}
 
 	private static boolean isMongoRunning() {

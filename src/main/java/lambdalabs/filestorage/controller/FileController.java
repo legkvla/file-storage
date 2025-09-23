@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @RestController
 @RequestMapping("/api/files")
@@ -48,13 +50,19 @@ public class FileController {
     private GridFsService gridFsService;
 
 
+    // Since we use User-Id passing auth approach - we expect sticky sessions,
+    // So thats why we implemented locks on java level.
+    // For other architecture - when we expect multiple nodes working with one user request - it will make sense
+    // to implement normal mongo locks using findAndModify
+    final ConcurrentMap<String, Object> locks = new ConcurrentHashMap<>();
+
     @Operation(summary = "Upload file", description = "Upload a file using raw InputStream")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "201", description = "File uploaded successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
-        @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
-        @ApiResponse(responseCode = "409", description = "Conflict - File with this filename or content already exists for the user")
+            @ApiResponse(responseCode = "201", description = "File uploaded successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request parameters"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
+            @ApiResponse(responseCode = "409", description = "Conflict - File with this filename or content already exists for the user")
     })
     @PostMapping("/upload")
     @ResponseStatus(HttpStatus.CREATED)
@@ -62,61 +70,65 @@ public class FileController {
             @RequestHeader("User-Id") String userId,
             @RequestParam("filename") String filename,
             //we have contentType explicitly here because we would like user to specify it and 
-            // it is not convinient with header approach because we want to distinguish 
+            // it is not convenient with header approach because we want to distinguish
             // when user specified contentType or not
             @RequestParam(value = "contentType", required = false) String contentType,
             @RequestParam(value = "visibility", defaultValue = "PRIVATE") Visibility visibility,
             @RequestParam(value = "tags", required = false) Set<String> tags,
             InputStream fileStream) {
-        
-        if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, userId)) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "Filename already exists");
-            error.put("message", "A file with this filename already exists for your account");
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
-        }
-        
-        try {
-            // Derive contentType from filename if not provided
-            String effectiveContentType = contentType;
-            if (effectiveContentType == null || effectiveContentType.isBlank()) {
-                effectiveContentType = MediaTypeFactory.getMediaType(filename)
-                        .map(MediaType::toString)
-                        .orElse("application/octet-stream");
-            }
 
-            ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, effectiveContentType);
+        final Object lock = locks.computeIfAbsent(userId, u -> new Object());
 
-            String md5Hash = gridFsService.calculateMD5FromGridFS(gridFsId);
-
-            if (fileMetadataRepository.existsByMd5AndOwnerId(md5Hash, userId)) {
-                // Clean up the stored file since we're rejecting the upload
-                gridFsService.deleteFile(gridFsId);
-                
+        synchronized (lock) {
+            if (fileMetadataRepository.existsByFilenameAndOwnerId(filename, userId)) {
                 Map<String, String> error = new HashMap<>();
-                error.put("error", "File already exists");
-                error.put("message", "A file with the same content already exists in your account");
+                error.put("error", "Filename already exists");
+                error.put("message", "A file with this filename already exists for your account");
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
             }
 
-            GridFsResource gridResource = gridFsService.getResource(gridFsId);
+            try {
+                // Derive contentType from filename if not provided
+                String effectiveContentType = contentType;
+                if (effectiveContentType == null || effectiveContentType.isBlank()) {
+                    effectiveContentType = MediaTypeFactory.getMediaType(filename)
+                            .map(MediaType::toString)
+                            .orElse("application/octet-stream");
+                }
 
-            FileMetadata metadata = new FileMetadata();
-            metadata.setFilename(filename);
-            metadata.setVisibility(visibility);
-            metadata.setTags(tags);
-            metadata.setOwnerId(userId);
-            metadata.setGridFsId(gridFsId);
-            metadata.setSize(gridResource.getGridFSFile().getLength());
-            metadata.setMd5(md5Hash);
-            metadata.setContentType(effectiveContentType);
+                ObjectId gridFsId = gridFsService.storeFileStreaming(fileStream, filename, effectiveContentType);
 
-            FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
+                String md5Hash = gridFsService.calculateMD5FromGridFS(gridFsId);
 
-            return ResponseEntity.ok(savedMetadata);
-        } catch (IOException e) {
-            logger.error("File upload failed: filename={}, contentType={}", filename, contentType, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+                if (fileMetadataRepository.existsByMd5AndOwnerId(md5Hash, userId)) {
+                    // Clean up the stored file since we're rejecting the upload
+                    gridFsService.deleteFile(gridFsId);
+
+                    Map<String, String> error = new HashMap<>();
+                    error.put("error", "File already exists");
+                    error.put("message", "A file with the same content already exists in your account");
+                    return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+                }
+
+                GridFsResource gridResource = gridFsService.getResource(gridFsId);
+
+                FileMetadata metadata = new FileMetadata();
+                metadata.setFilename(filename);
+                metadata.setVisibility(visibility);
+                metadata.setTags(tags);
+                metadata.setOwnerId(userId);
+                metadata.setGridFsId(gridFsId);
+                metadata.setSize(gridResource.getGridFSFile().getLength());
+                metadata.setMd5(md5Hash);
+                metadata.setContentType(effectiveContentType);
+
+                FileMetadata savedMetadata = fileMetadataRepository.save(metadata);
+
+                return ResponseEntity.ok(savedMetadata);
+            } catch (IOException e) {
+                logger.error("File upload failed: filename={}, contentType={}", filename, contentType, e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
         }
     }
 
@@ -125,10 +137,10 @@ public class FileController {
             @RequestHeader("User-Id") String userId,
             @PathVariable String id) {
         logger.info("File download request: metadataId={}, userId={}", id, userId);
-        
+
         // Find file with ownership check
         Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
-        
+
         if (metadataOpt.isEmpty()) {
             logger.warn("File metadata not found or access denied: metadataId={}, userId={}", id, userId);
             return ResponseEntity.notFound().build();
@@ -136,7 +148,7 @@ public class FileController {
 
         FileMetadata metadata = metadataOpt.get();
         logger.debug("Found metadata: filename={}, gridFsId={}", metadata.getFilename(), metadata.getGridFsId());
-        
+
         GridFsResource resource = gridFsService.getResource(metadata.getGridFsId());
 
         if (resource == null) {
@@ -150,8 +162,8 @@ public class FileController {
             headers.setContentDispositionFormData("attachment", metadata.getFilename());
             headers.setContentLength(resource.contentLength());
 
-            logger.info("File download successful: filename={}, contentType={}, size={}", 
-                       metadata.getFilename(), resource.getContentType(), resource.contentLength());
+            logger.info("File download successful: filename={}, contentType={}, size={}",
+                    metadata.getFilename(), resource.getContentType(), resource.contentLength());
 
             return ResponseEntity.ok()
                     .headers(headers)
@@ -174,8 +186,8 @@ public class FileController {
 
     @Operation(summary = "List files", description = "List files visible to the current user with optional filtering, pagination, and sorting")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "Files retrieved successfully"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header")
+            @ApiResponse(responseCode = "200", description = "Files retrieved successfully"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header")
     })
     @GetMapping
     public List<FileMetadata> listFiles(
@@ -215,7 +227,7 @@ public class FileController {
             @PathVariable String id) {
         // Find file with ownership check
         Optional<FileMetadata> metadataOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
-        
+
         if (metadataOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
@@ -225,14 +237,14 @@ public class FileController {
         if (!userId.equals(metadata.getOwnerId())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
-        
+
         try {
             // Delete from GridFS
             gridFsService.deleteFile(metadata.getGridFsId());
-            
+
             // Delete metadata (with ownership check)
             boolean deleted = fileMetadataRepository.deleteByIdAndOwner(id, userId);
-            
+
             if (deleted) {
                 return ResponseEntity.noContent().build();
             } else {
@@ -250,23 +262,23 @@ public class FileController {
      */
     @Operation(summary = "Update file metadata", description = "Update filename and tags for a file (only by owner)")
     @ApiResponses(value = {
-        @ApiResponse(responseCode = "200", description = "File metadata updated successfully",
-                content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
-        @ApiResponse(responseCode = "400", description = "Invalid request data"),
-        @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
-        @ApiResponse(responseCode = "403", description = "Forbidden - User does not own the file"),
-        @ApiResponse(responseCode = "404", description = "File not found"),
-        @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
+            @ApiResponse(responseCode = "200", description = "File metadata updated successfully",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = FileMetadata.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request data"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized - Missing User-Id header"),
+            @ApiResponse(responseCode = "403", description = "Forbidden - User does not own the file"),
+            @ApiResponse(responseCode = "404", description = "File not found"),
+            @ApiResponse(responseCode = "409", description = "Conflict - File with this filename already exists for the user")
     })
     @PatchMapping("/{id}")
     public ResponseEntity<?> updateFileMetadata(
             @RequestHeader("User-Id") String userId,
             @PathVariable String id,
             @Valid @RequestBody UpdateFileRequest updateRequest) {
-        
+
         // Find file with ownership check
         Optional<FileMetadata> existingOpt = fileMetadataRepository.findByIdVisibleToUser(id, userId);
-        
+
         if (existingOpt.isEmpty()) {
             logger.warn("File not found or access denied for update: metadataId={}, userId={}", id, userId);
             return ResponseEntity.notFound().build();
@@ -275,8 +287,8 @@ public class FileController {
         FileMetadata existing = existingOpt.get();
 
         if (!userId.equals(existing.getOwnerId())) {
-            logger.warn("User attempted to update file they don't own: metadataId={}, userId={}, ownerId={}", 
-                       id, userId, existing.getOwnerId());
+            logger.warn("User attempted to update file they don't own: metadataId={}, userId={}, ownerId={}",
+                    id, userId, existing.getOwnerId());
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
@@ -296,8 +308,8 @@ public class FileController {
         }
 
         FileMetadata saved = fileMetadataRepository.save(existing);
-        logger.info("File metadata updated: metadataId={}, filename={}, userId={}", 
-                   id, saved.getFilename(), userId);
+        logger.info("File metadata updated: metadataId={}, filename={}, userId={}",
+                id, saved.getFilename(), userId);
         return ResponseEntity.ok(saved);
     }
 
