@@ -71,7 +71,7 @@ SPRING_PROFILES_ACTIVE=test ./mvnw test
 * [ ] Better test coverage
 * [ ] Improved error handling and API responses.
 * [ ] Collect errors information in mongo collection to analyze and react
-* [ ] Adding production profiling using Spring Micrometer
+* [ ] Adding production profiling using Spring Micrometer (or may be adopt Quarkus?)
 * [ ] Resumable uploads
 * [ ] Sharing links for private files
 * [ ] Add own user authentication and authorization (OAuth2/JWT)
